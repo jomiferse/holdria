@@ -1,0 +1,65 @@
+# Reference development/deployment topology: the Holdria application,
+# persistent PostgreSQL, and a test SMTP server (Mailpit) so verification,
+# recovery, and account-security email can be developed and tested without
+# a real mail provider.
+#
+# This file is a reference for local development and a starting point for
+# an operator-controlled deployment; production is not required to use
+# Compose (design.md decision 11 — the app is a portable, stateless
+# container regardless of orchestrator).
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: holdria
+      POSTGRES_USER: holdria
+      POSTGRES_PASSWORD: holdria_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./drizzle/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U holdria -d holdria"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Development/test-only SMTP server with a web UI (http://localhost:8025)
+  # that captures every outgoing message instead of delivering it. Not a
+  # production SMTP recommendation — see docs for production configuration.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://holdria_app:holdria_app_password@postgres:5432/holdria
+      MIGRATION_DATABASE_URL: postgresql://holdria_migrator:holdria_migrator_password@postgres:5432/holdria
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET, e.g. via .env or `openssl rand -base64 32`}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3000}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: no-reply@holdria.local
+
+volumes:
+  postgres_data:
