@@ -1,24 +1,24 @@
 ## 1. Application Foundation
 
-- [ ] 1.1 Scaffold the Next.js App Router TypeScript application with Better Auth, its Drizzle PostgreSQL adapter, the agreed product dependencies, and package scripts for development, build, lint, type checking, and tests.
-- [ ] 1.2 Create the route groups, module directories, shared domain areas, database aggregation area, and composition boundaries described in the design.
-- [ ] 1.3 Add typed environment validation for runtime and migration database URLs, Better Auth URL and secret, trusted origins, SMTP settings, and optional observability settings without exposing server secrets to the browser.
-- [ ] 1.4 Configure Tailwind CSS and shadcn/ui with initial Holdria design tokens, typography, financial status colors, focus styles, and responsive layout primitives.
+- [x] 1.1 Scaffold the Next.js App Router TypeScript application with Better Auth, its Drizzle PostgreSQL adapter, the agreed product dependencies, and package scripts for development, build, lint, type checking, and tests.
+- [x] 1.2 Create the route groups, module directories, shared domain areas, database aggregation area, and composition boundaries described in the design.
+- [x] 1.3 Add typed environment validation for runtime and migration database URLs, Better Auth URL and secret, trusted origins, SMTP settings, and optional observability settings without exposing server secrets to the browser.
+- [x] 1.4 Configure Tailwind CSS and shadcn/ui with initial Holdria design tokens, typography, financial status colors, focus styles, and responsive layout primitives.
 - [ ] 1.5 Configure Vitest and Playwright, including PostgreSQL integration-test support and reusable authenticated-user fixtures that do not depend on production accounts.
 
 ## 2. PostgreSQL and Drizzle Foundation
 
-- [ ] 2.1 Configure Drizzle for self-hosted PostgreSQL, separate runtime and migration privileges, bounded connection pooling, PostgreSQL numeric handling, and versioned SQL migrations.
-- [ ] 2.2 Configure Better Auth to generate PostgreSQL UUID identifiers, generate and review its Drizzle user, account, session, and verification schema, and keep Drizzle migrations as the only production migration path.
-- [ ] 2.3 Define optional Holdria profiles plus the `portfolios`, `instruments`, `instrument_external_references`, `ledger_entries`, and `price_observations` tables with UUIDs, audit fields, indexes, and ownership columns.
-- [ ] 2.4 Add database constraints for EUR currency, instrument identity uniqueness, manual-price uniqueness, ledger type-specific fields, positive magnitudes, and stable per-portfolio sequence values.
-- [ ] 2.5 Add composite ownership keys and foreign keys that prevent cross-user relationships and cascade every user's Holdria data from deletion of the canonical Better Auth user row.
-- [ ] 2.6 Create least-privilege runtime and migration roles and document network rules that keep PostgreSQL reachable only from trusted application, migration, administration, and backup paths.
-- [ ] 2.7 Generate and verify the combined Better Auth and Holdria SQL migration against a clean PostgreSQL database, including critical constraints, cascades, and transaction rollback.
+- [x] 2.1 Configure Drizzle for self-hosted PostgreSQL, separate runtime and migration privileges, bounded connection pooling, PostgreSQL numeric handling, and versioned SQL migrations.
+- [x] 2.2 Configure Better Auth to generate PostgreSQL UUID identifiers, generate and review its Drizzle user, account, session, and verification schema, and keep Drizzle migrations as the only production migration path.
+- [x] 2.3 Define optional Holdria profiles plus the `portfolios`, `instruments`, `instrument_external_references`, `ledger_entries`, and `price_observations` tables with UUIDs, audit fields, indexes, and ownership columns.
+- [x] 2.4 Add database constraints for EUR currency, instrument identity uniqueness, manual-price uniqueness, ledger type-specific fields, positive magnitudes, and stable per-portfolio sequence values.
+- [x] 2.5 Add composite ownership keys and foreign keys that prevent cross-user relationships and cascade every user's Holdria data from deletion of the canonical Better Auth user row.
+- [x] 2.6 Create least-privilege runtime and migration roles and document network rules that keep PostgreSQL reachable only from trusted application, migration, administration, and backup paths.
+- [x] 2.7 Generate and verify the combined Better Auth and Holdria SQL migration against a clean PostgreSQL database, including critical constraints, cascades, and transaction rollback.
 
 ## 3. Identity and Authorization
 
-- [ ] 3.1 Configure the same-origin Better Auth Next.js handler with its Drizzle adapter, email/password authentication, required email verification, UUID IDs, database-backed sessions, and user deletion enabled.
+- [x] 3.1 Configure the same-origin Better Auth Next.js handler with its Drizzle adapter, email/password authentication, required email verification, UUID IDs, database-backed sessions, and user deletion enabled.
 - [ ] 3.2 Configure production cookie, session expiry, revocation, trusted-origin, CSRF, password-hashing, and authentication rate-limit settings without Redis or stateless-session mode.
 - [ ] 3.3 Implement a provider-neutral email port with an SMTP adapter for verification, password reset, and account-security messages, including test transport and generic anti-enumeration responses.
 - [ ] 3.4 Implement the authenticated actor abstraction that converts the Better Auth user UUID into the domain `UserId` without exposing Better Auth types outside identity infrastructure.
@@ -81,9 +81,9 @@
 
 ## 10. Portable Build and Release Readiness
 
-- [ ] 10.1 Configure Next.js standalone Node.js output and create a multi-stage Docker image that runs as non-root with no durable filesystem dependency.
-- [ ] 10.2 Add a reference Docker Compose deployment for the application and persistent PostgreSQL, plus a development/test SMTP service, without coupling production to Compose.
-- [ ] 10.3 Add liveness and PostgreSQL-readiness endpoints, graceful connection-pool shutdown, and documented runtime versus migration database roles.
+- [x] 10.1 Configure Next.js standalone Node.js output and create a multi-stage Docker image that runs as non-root with no durable filesystem dependency.
+- [x] 10.2 Add a reference Docker Compose deployment for the application and persistent PostgreSQL, plus a development/test SMTP service, without coupling production to Compose.
+- [x] 10.3 Add liveness and PostgreSQL-readiness endpoints, graceful connection-pool shutdown, and documented runtime versus migration database roles.
 - [ ] 10.4 Add a release workflow that runs checks, builds the application and Docker image, and executes reviewed Drizzle migrations as an explicit step rather than at replica startup.
 - [ ] 10.5 Document local, test, staging, and production configuration for Better Auth secrets, trusted origins, HTTPS proxying, SMTP, PostgreSQL backup and restore, migration, and optional observability.
 - [ ] 10.6 Verify a clean operator-controlled Docker deployment with PostgreSQL and Better Auth, then run migration, authentication, deletion, smoke, accessibility, and tenant-isolation checks.
