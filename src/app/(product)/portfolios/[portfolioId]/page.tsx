@@ -37,12 +37,7 @@ export default async function PortfolioSummaryPage({
         <dd>{portfolio.createdAt.toLocaleDateString()}</dd>
       </dl>
 
-      <PortfolioSummary
-        analytics={analytics}
-        modifiedDietz={modifiedDietz}
-        portfolioId={portfolioId}
-        instrumentNames={instrumentNames}
-      />
+      <PortfolioSummary analytics={analytics} modifiedDietz={modifiedDietz} instrumentNames={instrumentNames} />
 
       <div>
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">Positions</h2>

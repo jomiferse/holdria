@@ -9,7 +9,7 @@ import { TriangleAlertIcon } from "lucide-react";
  * lacks a price" / "Allocation is incomplete" / pricing spec: "no
  * eligible price exists").
  */
-export function MissingPriceNote({ instrumentNames, portfolioId }: { instrumentNames: readonly string[]; portfolioId: string }) {
+export function MissingPriceNote({ instrumentNames }: { instrumentNames: readonly string[] }) {
   return (
     <Alert>
       <TriangleAlertIcon />
@@ -21,7 +21,10 @@ export function MissingPriceNote({ instrumentNames, portfolioId }: { instrumentN
             : `These instruments have no recorded price on or before this date: ${instrumentNames.join(", ")}.`}{" "}
           Totals that depend on it are hidden rather than shown as zero or an estimate.
         </p>
-        <Link href={`/portfolios/${portfolioId}/prices`} className="font-medium underline underline-offset-2">
+        {/* Manual prices are managed on the shared `/prices` page, not a
+            per-portfolio route (instruments are shared across portfolios;
+            see design.md decision 5). */}
+        <Link href="/prices" className="font-medium underline underline-offset-2">
           Record a price
         </Link>
       </AlertDescription>

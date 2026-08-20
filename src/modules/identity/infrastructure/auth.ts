@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 import { db } from "@/db/client";
-import { env } from "@/config/env";
+import { env, isLocalAuthUrl } from "@/config/env";
 import * as authSchema from "@/db/schema/auth-schema";
 import { getEmailPort } from "@/modules/identity/infrastructure/email";
 import {
@@ -108,8 +108,12 @@ export const auth = betterAuth({
     // See `env.DISABLE_AUTH_RATE_LIMIT`: disabled only for the Playwright
     // E2E `webServer`, which legitimately issues many real sign-up/sign-in
     // requests from one host in quick succession. Every other environment
-    // keeps this enabled.
-    enabled: !env.DISABLE_AUTH_RATE_LIMIT,
+    // keeps this enabled. `env.ts` already refuses to start with the flag
+    // set unless `BETTER_AUTH_URL` is also local; the explicit
+    // `isLocalAuthUrl` term here is a second, independent guard so this
+    // line alone still keeps a real deployment protected even if that
+    // startup check were ever changed.
+    enabled: !env.DISABLE_AUTH_RATE_LIMIT || !isLocalAuthUrl(env.BETTER_AUTH_URL),
     storage: "database",
     window: 60,
     max: 30,

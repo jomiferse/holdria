@@ -1,3 +1,4 @@
+import type { InstrumentRepository } from "@/modules/instruments/application/instrument-repository";
 import { drizzleInstrumentRepository } from "@/modules/instruments/infrastructure/drizzle-instrument-repository";
 import type { UserId } from "@/shared/domain/user-id";
 
@@ -54,11 +55,31 @@ export interface OperationsPageData {
   readonly instruments: LedgerInstrumentOption[];
 }
 
+/**
+ * The operations page's read-model dependencies, typed against the
+ * instruments module's own repository port rather than its concrete
+ * Drizzle implementation (design.md decision 2: Server Components call
+ * application queries, not Drizzle, directly). Only `operationsPageDeps`
+ * below names the concrete infrastructure; test callers may substitute an
+ * in-memory fake.
+ */
+export interface OperationsPageDeps {
+  readonly instrumentRepository: Pick<InstrumentRepository, "listOwned">;
+}
+
+export const operationsPageDeps: OperationsPageDeps = {
+  instrumentRepository: drizzleInstrumentRepository,
+};
+
 /** Server Component read model for the portfolio operations page: the ledger and the owner's instruments for the picker. */
-export async function getOperationsPageData(ownerId: UserId, portfolioId: string): Promise<OperationsPageData> {
+export async function getOperationsPageData(
+  ownerId: UserId,
+  portfolioId: string,
+  deps: OperationsPageDeps = operationsPageDeps,
+): Promise<OperationsPageData> {
   const [entries, instruments] = await Promise.all([
     listLedgerEntries(ownerId, portfolioId as PortfolioId),
-    drizzleInstrumentRepository.listOwned(ownerId),
+    deps.instrumentRepository.listOwned(ownerId),
   ]);
 
   return {

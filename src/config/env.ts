@@ -1,6 +1,17 @@
 import { z } from "zod";
 
 /**
+ * True when `url` is a localhost/loopback address — never true for a real
+ * deployment's public `BETTER_AUTH_URL`. Exported so `auth.ts` can apply
+ * the same "is this actually a local/test server" check as its own
+ * independent guard on `DISABLE_AUTH_RATE_LIMIT`, without the two checks
+ * drifting out of sync as separately maintained regexes.
+ */
+export function isLocalAuthUrl(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url);
+}
+
+/**
  * Server-only environment configuration.
  *
  * Import this module only from server code (Server Components, Server
@@ -73,12 +84,34 @@ const envSchema = z.object({
    * allow. Defaults to disabled so every other environment, including
    * plain local development, keeps the real limits; only the E2E
    * `webServer` sets this to `true` (see `playwright.config.ts`).
+   *
+   * Deliberately *not* gated on `NODE_ENV !== "production"`: the E2E
+   * `webServer` runs the same standalone build `next build`/`next start`
+   * always run under `NODE_ENV=production` (so its cookies, CSRF, and
+   * other production-only behavior are exercised for real — see
+   * `useSecureCookies` below) — a "not production" check would reject the
+   * E2E server's own legitimate use just as readily as a real deployment's
+   * accidental one. Gated on `BETTER_AUTH_URL` instead: a genuine
+   * deployment's public base URL is never `localhost`, so this refusal
+   * targets the actual "is this a real deployment" question the
+   * NODE_ENV check could not answer.
    */
   DISABLE_AUTH_RATE_LIMIT: z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
-});
+}).refine(
+  (value) => !value.DISABLE_AUTH_RATE_LIMIT || isLocalAuthUrl(value.BETTER_AUTH_URL),
+  {
+    // Defense in depth alongside `auth.ts`'s own independent
+    // `BETTER_AUTH_URL` check: an environment that inherited this flag
+    // (e.g. a copy-pasted E2E config) fails startup instead of silently
+    // running with authentication rate limiting off, unless its own
+    // BETTER_AUTH_URL also proves it is a local/test server.
+    error: "DISABLE_AUTH_RATE_LIMIT must not be true unless BETTER_AUTH_URL is localhost.",
+    path: ["DISABLE_AUTH_RATE_LIMIT"],
+  },
+);
 
 export type Env = z.infer<typeof envSchema>;
 

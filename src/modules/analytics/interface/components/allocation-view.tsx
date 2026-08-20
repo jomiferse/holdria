@@ -16,15 +16,13 @@ import { MissingPriceNote } from "./missing-price-note";
  */
 export function AllocationView({
   allocation,
-  portfolioId,
   instrumentNames,
 }: {
   readonly allocation: AllocationResult;
-  readonly portfolioId: string;
   readonly instrumentNames: readonly string[];
 }) {
   if (allocation.status === "incomplete") {
-    return <MissingPriceNote instrumentNames={instrumentNames} portfolioId={portfolioId} />;
+    return <MissingPriceNote instrumentNames={instrumentNames} />;
   }
 
   if (allocation.byInstrument.length === 0) {

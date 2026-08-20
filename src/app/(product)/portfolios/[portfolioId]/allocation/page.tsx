@@ -15,7 +15,5 @@ export default async function PortfolioAllocationPage({
     (id) => analytics.instrumentsById.get(id)?.name ?? "an instrument",
   );
 
-  return (
-    <AllocationView allocation={analytics.allocation} portfolioId={portfolioId} instrumentNames={instrumentNames} />
-  );
+  return <AllocationView allocation={analytics.allocation} instrumentNames={instrumentNames} />;
 }

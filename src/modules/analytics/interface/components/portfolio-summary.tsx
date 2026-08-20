@@ -22,21 +22,17 @@ function resultTone(isPositive: boolean, isNegative: boolean): string {
 export function PortfolioSummary({
   analytics,
   modifiedDietz,
-  portfolioId,
   instrumentNames,
 }: {
   readonly analytics: PortfolioAnalytics;
   readonly modifiedDietz: ModifiedDietzResult;
-  readonly portfolioId: string;
   readonly instrumentNames: readonly string[];
 }) {
   const { valuation, result } = analytics;
 
   return (
     <div className="flex flex-col gap-4">
-      {valuation.status === "incomplete" && (
-        <MissingPriceNote instrumentNames={instrumentNames} portfolioId={portfolioId} />
-      )}
+      {valuation.status === "incomplete" && <MissingPriceNote instrumentNames={instrumentNames} />}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

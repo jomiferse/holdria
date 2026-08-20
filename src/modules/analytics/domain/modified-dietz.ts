@@ -1,4 +1,4 @@
-import type { Decimal } from "@/shared/domain/decimal";
+import { FinancialDecimal, type Decimal } from "@/shared/domain/decimal";
 import { Money } from "@/shared/domain/money";
 
 /** One external cash flow within a Modified Dietz period. Positive for a contribution, negative for a withdrawal. */
@@ -90,7 +90,14 @@ export function calculateModifiedDietz(
 
   for (const flow of flows) {
     externalFlowsSum = externalFlowsSum.plus(flow.amount);
-    const weight = periodDays === 0 ? 1 : (periodDays - daysBetween(periodStart, flow.date)) / periodDays;
+    // Day counts are exact integers and `weight` is computed entirely in
+    // `FinancialDecimal` — never a JavaScript `number` division — before
+    // scaling the flow's `Money` amount (design.md decision 7: no
+    // JavaScript-number financial arithmetic).
+    const weight =
+      periodDays === 0
+        ? new FinancialDecimal(1)
+        : new FinancialDecimal(periodDays - daysBetween(periodStart, flow.date)).dividedBy(periodDays);
     weightedFlowsSum = weightedFlowsSum.plus(flow.amount.times(weight));
   }
 

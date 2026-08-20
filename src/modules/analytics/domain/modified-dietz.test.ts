@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { FinancialDecimal } from "@/shared/domain/decimal";
 import { Money } from "@/shared/domain/money";
 
 import { calculateModifiedDietz } from "./modified-dietz";
@@ -18,10 +19,15 @@ describe("calculateModifiedDietz", () => {
 
     expect(result.status).toBe("available");
     if (result.status !== "available") throw new Error("unreachable");
-    // denominator = 1000 + 100*(20/30) = 1066.666...
-    // numerator = 1150 - 1000 - 100 = 50
-    const expected = 50 / (1000 + (100 * 20) / 30);
-    expect(result.returnRate.toNumber()).toBeCloseTo(expected, 10);
+    // denominator = 1000 + 100*(20/30); numerator = 1150 - 1000 - 100 = 50.
+    // Computed independently, in the same exact decimal engine the
+    // implementation uses, so this proves decimal-exact behavior rather
+    // than merely approximating a JavaScript-float expectation.
+    const denominator = new FinancialDecimal(1000).plus(
+      new FinancialDecimal(100).times(new FinancialDecimal(20).dividedBy(30)),
+    );
+    const expected = new FinancialDecimal(50).dividedBy(denominator);
+    expect(result.returnRate.toFixed(30)).toBe(expected.toFixed(30));
   });
 
   it("since-inception case: zero beginning value, a day-one contribution carries full weight", () => {
@@ -36,7 +42,7 @@ describe("calculateModifiedDietz", () => {
     expect(result.status).toBe("available");
     if (result.status !== "available") throw new Error("unreachable");
     // denominator = 0 + 1000*(30/30) = 1000; numerator = 1100 - 0 - 1000 = 100
-    expect(result.returnRate.toNumber()).toBeCloseTo(0.1, 10);
+    expect(result.returnRate.toFixed(10)).toBe("0.1000000000");
   });
 
   it("a withdrawal is a negative external flow", () => {
@@ -51,7 +57,7 @@ describe("calculateModifiedDietz", () => {
     expect(result.status).toBe("available");
     if (result.status !== "available") throw new Error("unreachable");
     // denominator = 1000 + (-100)*1 = 900; numerator = 900 - 1000 - (-100) = 0
-    expect(result.returnRate.toNumber()).toBeCloseTo(0, 10);
+    expect(result.returnRate.toFixed(10)).toBe("0.0000000000");
   });
 
   it("is unavailable when either valuation is missing, never zero", () => {
@@ -87,7 +93,7 @@ describe("calculateModifiedDietz", () => {
 
     expect(result.status).toBe("available");
     if (result.status !== "available") throw new Error("unreachable");
-    expect(result.returnRate.toNumber()).toBeCloseTo(0.05, 10);
+    expect(result.returnRate.toFixed(10)).toBe("0.0500000000");
   });
 
   it("repeated calculation with identical inputs is reproducible", () => {

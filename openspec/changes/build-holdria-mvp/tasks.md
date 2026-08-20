@@ -67,7 +67,7 @@
 - [x] 8.2 Implement open-cost, realized and unrealized result, and total absolute result calculations with explicit incomplete-valuation outcomes.
 - [x] 8.3 Implement non-annualized Modified Dietz for arbitrary supported periods and since inception, including unavailable results for missing inputs or non-positive denominators.
 - [x] 8.4 Implement allocation by instrument and instrument type with explicit incomplete states when any required price is unavailable.
-- [x] 8.5 Implement on-demand historical reconstruction that returns in-memory `PortfolioSnapshot` values only for complete valuation dates and persists no snapshot cache.
+- [x] 8.5 Implement on-demand historical reconstruction that returns in-memory `PortfolioSnapshot` values for every reconstructed date, each explicitly marked complete or incomplete per the analytics spec's "Historical evolution" requirement, and persists no snapshot cache.
 - [x] 8.6 Build the portfolio summary, positions, allocation chart, return explanation, missing-price state, and historical evolution chart with responsive and accessible presentations.
 - [x] 8.7 Add deterministic calculation tests using known financial examples and repeated-input checks for valuation, absolute result, Modified Dietz, allocation, and reconstructed history.
 

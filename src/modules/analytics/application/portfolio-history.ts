@@ -1,3 +1,4 @@
+import { toInstrumentId as toPricingInstrumentId } from "@/modules/pricing/domain/price-observation";
 import type { PortfolioId } from "@/modules/transactions/domain/ledger-entry";
 import type { UserId } from "@/shared/domain/user-id";
 
@@ -22,12 +23,16 @@ export interface PortfolioSnapshot {
  * ("Source data is corrected").
  *
  * Snapshot dates default to every distinct effective date the portfolio's
- * ledger entries carry, plus today if not already included. Manual pricing
- * produces a small input set (design.md decision 5), so reconstructing one
- * point per ledger-changing event is simple, sufficient for the MVP's
- * scale, and needs no arbitrary calendar-bucketing policy the specs do not
- * define. Callers that need a specific set of dates (e.g. month-end
- * points) may pass `dates` explicitly.
+ * ledger entries carry, every effective date of a manual price observation
+ * recorded for an instrument the portfolio ever traded, and today. Prices
+ * are one of the two authoritative sources for a historical point (analytics
+ * spec: "reconstructible historical portfolio values from ledger entries
+ * and dated prices"), so a price-only change (no new ledger activity) must
+ * still produce a new point — otherwise the evolution chart would be blind
+ * to market-value changes between ledger events. This still needs no
+ * arbitrary calendar-bucketing policy the specs do not define; callers that
+ * need a specific set of dates (e.g. month-end points) may pass `dates`
+ * explicitly.
  */
 export async function reconstructPortfolioHistory(
   deps: PortfolioAnalyticsDeps,
@@ -37,13 +42,7 @@ export async function reconstructPortfolioHistory(
 ): Promise<PortfolioSnapshot[]> {
   const entries = await deps.listLedgerEntries(ownerId, portfolioId);
 
-  const snapshotDates =
-    dates ??
-    (() => {
-      const distinct = new Set(entries.map((entry) => entry.effectiveDate.toString()));
-      distinct.add(todayDateOnly());
-      return [...distinct].sort();
-    })();
+  const snapshotDates = dates ?? (await defaultSnapshotDates(deps, ownerId, entries));
 
   const snapshots: PortfolioSnapshot[] = [];
   for (const date of snapshotDates) {
@@ -52,4 +51,30 @@ export async function reconstructPortfolioHistory(
   }
 
   return snapshots;
+}
+
+async function defaultSnapshotDates(
+  deps: PortfolioAnalyticsDeps,
+  ownerId: UserId,
+  entries: Awaited<ReturnType<PortfolioAnalyticsDeps["listLedgerEntries"]>>,
+): Promise<string[]> {
+  const distinct = new Set(entries.map((entry) => entry.effectiveDate.toString()));
+
+  const tradedInstrumentIds = new Set(
+    entries.filter((entry) => entry.type === "BUY" || entry.type === "SELL").map((entry) => entry.instrumentId),
+  );
+
+  const priceDatesByInstrument = await Promise.all(
+    [...tradedInstrumentIds].map((instrumentId) =>
+      deps.priceObservationRepository.listByInstrument(ownerId, toPricingInstrumentId(instrumentId)),
+    ),
+  );
+  for (const observations of priceDatesByInstrument) {
+    for (const observation of observations) {
+      distinct.add(observation.effectiveDate);
+    }
+  }
+
+  distinct.add(todayDateOnly());
+  return [...distinct].sort();
 }

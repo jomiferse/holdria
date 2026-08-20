@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 
 import { env } from "@/config/env";
 import * as schema from "@/db/schema";
+import { logUnexpectedError } from "@/shared/infrastructure/logging";
 
 /**
  * Runtime PostgreSQL connection pool.
@@ -29,7 +30,11 @@ pool.on("error", (error) => {
   // Idle clients can emit background errors (e.g. a dropped network
   // connection) outside of any query. Surfacing them here keeps the
   // process from crashing while still making the failure observable.
-  console.error("Unexpected PostgreSQL pool error", error);
+  // `pg` driver errors can echo back the offending value in a constraint
+  // or query-detail message, so this goes through the same privacy-safe
+  // logger as every other unexpected error (task 9.4) rather than
+  // printing the raw error object.
+  logUnexpectedError("postgres-pool", error);
 });
 
 /**

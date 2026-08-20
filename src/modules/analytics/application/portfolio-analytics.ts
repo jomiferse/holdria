@@ -40,9 +40,13 @@ export async function getPortfolioAnalytics(
     instruments.map((instrument) => [instrument.id, instrument]),
   );
 
+  // Bounded to `asOfDate` so a future-dated contribution or withdrawal
+  // (not yet reflected in `valuation`'s cash/positions) cannot distort
+  // today's cumulative flows or absolute result.
+  const entriesAsOfDate = entries.filter((entry) => entry.effectiveDate.toString() <= asOfDate);
   const valuation = await valuePortfolioAsOf(deps, ownerId, entries, asOfDate, { inclusive: true });
-  const projection = reduceLedger(entries.filter((entry) => entry.effectiveDate.toString() <= asOfDate));
-  const result = calculatePortfolioResult(entries, projection, valuation);
+  const projection = reduceLedger(entriesAsOfDate);
+  const result = calculatePortfolioResult(entriesAsOfDate, projection, valuation);
 
   const instrumentMeta = new Map(
     instruments.map((instrument) => [instrument.id as InstrumentId, { name: instrument.name, type: instrument.type }]),

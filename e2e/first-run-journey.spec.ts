@@ -1,18 +1,39 @@
-import { test, expect } from "./fixtures/auth";
+import { expect, test } from "@playwright/test";
+
+import { uniqueTestAccount } from "./fixtures/auth";
+import { findVerificationLink } from "./fixtures/mailpit";
 
 /**
  * The critical first-run journey (task 9.1, design.md decision 10): a
- * brand-new account, through real registration and verification UI,
- * reaching its first complete portfolio valuation — a portfolio, a
- * contribution, an instrument, a purchase, a manual price, and a
- * non-zero, fully priced result. No step is skipped via a fixture
- * shortcut; `account` itself signs up and in through the real UI.
+ * brand-new account, through real registration and verification —
+ * including the actual emailed verification link, fetched from Mailpit
+ * rather than written into the database — reaching its first complete
+ * portfolio valuation: a portfolio, a contribution, an instrument, a
+ * purchase, a manual price, and a non-zero, fully priced result.
+ *
+ * Requires Mailpit reachable at `MAILPIT_URL` (default
+ * `http://localhost:8025`; see `docker-compose.yml`'s `mailpit` service
+ * and `e2e/fixtures/mailpit.ts`).
  */
 test.describe("first-run journey", () => {
-  test("registration through a first complete valuation", async ({ page, account: _account }) => {
-    // Destructuring `account` (even unused) is what makes Playwright run
-    // that fixture at all: it already completed sign-up, verification,
-    // and sign-in through the real UI and left `page` on "/".
+  test("registration through a first complete valuation", async ({ page }) => {
+    const account = uniqueTestAccount("firstrun");
+
+    await page.goto("/sign-up");
+    await page.getByLabel("Name").fill(account.name);
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
+
+    const verificationLink = await findVerificationLink(account.email);
+    // Better Auth's verify-email callback establishes a session for the
+    // now-verified user directly, so the owner never has to sign in
+    // separately after following the link from their inbox.
+    await page.goto(verificationLink);
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Account" })).toBeVisible();
+
     await page.goto("/portfolios");
     await expect(page.getByRole("heading", { name: "Welcome to Holdria" })).toBeVisible();
 
