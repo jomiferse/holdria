@@ -64,6 +64,20 @@ const envSchema = z.object({
 
   /** Port the standalone Node.js server binds to inside its container. */
   PORT: z.coerce.number().int().positive().default(3000),
+
+  /**
+   * Test-only escape hatch for Better Auth's authentication rate limiting
+   * (see `auth.ts`). Playwright's E2E suite runs many real sign-up/sign-in
+   * HTTP requests from the same host in quick succession — legitimate
+   * traffic the production rate limit is deliberately not designed to
+   * allow. Defaults to disabled so every other environment, including
+   * plain local development, keeps the real limits; only the E2E
+   * `webServer` sets this to `true` (see `playwright.config.ts`).
+   */
+  DISABLE_AUTH_RATE_LIMIT: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

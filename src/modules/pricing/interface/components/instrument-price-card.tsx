@@ -11,7 +11,13 @@ export function InstrumentPriceCard({ instrument, observations }: InstrumentWith
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{instrument.name}</CardTitle>
+        {/* `CardTitle` is a styled `div`, not a semantic heading (see
+            `components/ui/card.tsx`) — wrap it in an actual `h2` so the
+            prices list is navigable by heading, matching the same pattern
+            used on the portfolios list page. */}
+        <CardTitle>
+          <h2 className="contents">{instrument.name}</h2>
+        </CardTitle>
         <CardAction>
           <AddPriceObservationDialog instrumentId={instrument.id} instrumentName={instrument.name} />
         </CardAction>

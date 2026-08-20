@@ -14,6 +14,7 @@ import {
   editPriceObservationSchema,
 } from "@/modules/pricing/interface/schema";
 import { isDomainError } from "@/shared/domain/errors";
+import { logUnexpectedError } from "@/shared/infrastructure/logging";
 
 /** Shared result shape for pricing's price-observation Server Actions. */
 export type PriceObservationActionState =
@@ -30,7 +31,7 @@ function toErrorState(error: unknown, fallbackMessage: string): PriceObservation
   }
   // Unexpected errors are logged, not surfaced verbatim, to avoid leaking
   // internals (design.md task 9.4: privacy-safe logging and error mapping).
-  console.error(fallbackMessage, error);
+  logUnexpectedError("pricing-action", error);
   return { status: "error", message: fallbackMessage };
 }
 

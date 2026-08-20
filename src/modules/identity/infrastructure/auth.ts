@@ -105,7 +105,11 @@ export const auth = betterAuth({
   // limits hold across restarts and every application replica shares the
   // same counters (design.md non-goal: no Redis).
   rateLimit: {
-    enabled: true,
+    // See `env.DISABLE_AUTH_RATE_LIMIT`: disabled only for the Playwright
+    // E2E `webServer`, which legitimately issues many real sign-up/sign-in
+    // requests from one host in quick succession. Every other environment
+    // keeps this enabled.
+    enabled: !env.DISABLE_AUTH_RATE_LIMIT,
     storage: "database",
     window: 60,
     max: 30,

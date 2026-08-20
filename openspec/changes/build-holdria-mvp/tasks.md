@@ -50,7 +50,7 @@
 - [x] 6.3 Implement the deterministic ledger reducer for cash, units, weighted-average open cost, and realized result ordered by effective date and immutable sequence.
 - [x] 6.4 Implement owner-scoped ledger persistence with concurrency-safe sequence allocation and transactional replay validation for create, edit, and delete.
 - [x] 6.5 Implement the atomic contribute-and-invest command that persists linked CONTRIBUTION and BUY entries in the required order or rolls both back.
-- [ ] 6.6 Build ledger list, add, edit, delete, and contribute-and-invest forms with type-aware fields and explanations for negative-cash, negative-units, and backdated conflicts.
+- [x] 6.6 Build ledger list, add, edit, delete, and contribute-and-invest forms with type-aware fields and explanations for negative-cash, negative-units, and backdated conflicts.
 - [x] 6.7 Add golden, edge-case, and invariant-oriented tests for fees, multiple buys, partial and full sales, same-date ordering, corrections, and failed atomic groups.
 
 ## 7. Manual Pricing and Provider Boundary
@@ -59,25 +59,25 @@
 - [x] 7.2 Implement deterministic as-of price selection that returns value, effective date, source, and an explicit unpriced result.
 - [x] 7.3 Define provider-neutral application ports and DTOs for instrument search, latest prices, and price history, plus instrument external-reference persistence, without adding a real provider.
 - [x] 7.4 Build manual-price list and edit experiences that expose effective date and source, prevent ambiguous same-date duplicates, and never label manual data as real-time.
-- [ ] 7.5 Add domain, persistence, authorization, and UI tests for price validation, duplicate dates, corrections, deletion, provenance, and as-of selection. (Playwright/e2e UI coverage remains deferred.)
+- [x] 7.5 Add domain, persistence, authorization, and UI tests for price validation, duplicate dates, corrections, deletion, provenance, and as-of selection.
 
 ## 8. Portfolio Analytics
 
-- [ ] 8.1 Implement current position and portfolio valuation by combining the ledger projection with owner-scoped as-of price observations.
-- [ ] 8.2 Implement open-cost, realized and unrealized result, and total absolute result calculations with explicit incomplete-valuation outcomes.
-- [ ] 8.3 Implement non-annualized Modified Dietz for arbitrary supported periods and since inception, including unavailable results for missing inputs or non-positive denominators.
-- [ ] 8.4 Implement allocation by instrument and instrument type with explicit incomplete states when any required price is unavailable.
-- [ ] 8.5 Implement on-demand historical reconstruction that returns in-memory `PortfolioSnapshot` values only for complete valuation dates and persists no snapshot cache.
-- [ ] 8.6 Build the portfolio summary, positions, allocation chart, return explanation, missing-price state, and historical evolution chart with responsive and accessible presentations.
-- [ ] 8.7 Add deterministic calculation tests using known financial examples and repeated-input checks for valuation, absolute result, Modified Dietz, allocation, and reconstructed history.
+- [x] 8.1 Implement current position and portfolio valuation by combining the ledger projection with owner-scoped as-of price observations.
+- [x] 8.2 Implement open-cost, realized and unrealized result, and total absolute result calculations with explicit incomplete-valuation outcomes.
+- [x] 8.3 Implement non-annualized Modified Dietz for arbitrary supported periods and since inception, including unavailable results for missing inputs or non-positive denominators.
+- [x] 8.4 Implement allocation by instrument and instrument type with explicit incomplete states when any required price is unavailable.
+- [x] 8.5 Implement on-demand historical reconstruction that returns in-memory `PortfolioSnapshot` values only for complete valuation dates and persists no snapshot cache.
+- [x] 8.6 Build the portfolio summary, positions, allocation chart, return explanation, missing-price state, and historical evolution chart with responsive and accessible presentations.
+- [x] 8.7 Add deterministic calculation tests using known financial examples and repeated-input checks for valuation, absolute result, Modified Dietz, allocation, and reconstructed history.
 
 ## 9. Integrated Product Quality
 
-- [ ] 9.1 Complete the first-run journey from self-hosted account registration and verification through portfolio, contribution, instrument, purchase, manual price, and first complete valuation.
-- [ ] 9.2 Add intentional route and component loading, empty, error, and success states across every core workflow, preserving safe form input after expected failures.
-- [ ] 9.3 Audit and correct keyboard navigation, focus management, labels, announcements, contrast, chart alternatives, and narrow-viewport behavior for core pages.
-- [ ] 9.4 Add structured error handling and privacy-safe logging that excludes credentials, tokens, portfolio values, ledger amounts, and unnecessary personal data.
-- [ ] 9.5 Add end-to-end journeys for a valued fund portfolio, an ETF or stock portfolio, contribution and withdrawal flows, partial sale, missing price, correction, and cross-tenant denial.
+- [x] 9.1 Complete the first-run journey from self-hosted account registration and verification through portfolio, contribution, instrument, purchase, manual price, and first complete valuation.
+- [x] 9.2 Add intentional route and component loading, empty, error, and success states across every core workflow, preserving safe form input after expected failures.
+- [x] 9.3 Audit and correct keyboard navigation, focus management, labels, announcements, contrast, chart alternatives, and narrow-viewport behavior for core pages.
+- [x] 9.4 Add structured error handling and privacy-safe logging that excludes credentials, tokens, portfolio values, ledger amounts, and unnecessary personal data.
+- [x] 9.5 Add end-to-end journeys for a valued fund portfolio, an ETF or stock portfolio, contribution and withdrawal flows, partial sale, missing price, correction, and cross-tenant denial.
 
 ## 10. Portable Build and Release Readiness
 
