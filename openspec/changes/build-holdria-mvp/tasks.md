@@ -29,19 +29,19 @@
 
 ## 4. Portfolio Management and Product Shell
 
-- [ ] 4.1 Implement the portfolio domain rules, owner-scoped repository, and application commands and queries for list, create, rename, and confirmed deletion.
-- [ ] 4.2 Implement Zod inputs and Server Actions for portfolio mutations, including EUR-only enforcement and expected-error mapping.
-- [ ] 4.3 Build the authenticated responsive shell with portfolio switching and navigation for summary, operations, prices, allocation, and history.
-- [ ] 4.4 Build the no-portfolio onboarding state and portfolio create, rename, and delete flows with accessible confirmation and feedback.
-- [ ] 4.5 Add unit, repository, and Playwright coverage for multiple portfolios, EUR rejection, ownership, empty states, and lifecycle actions.
+- [x] 4.1 Implement the portfolio domain rules, owner-scoped repository, and application commands and queries for list, create, rename, and confirmed deletion.
+- [x] 4.2 Implement Zod inputs and Server Actions for portfolio mutations, including EUR-only enforcement and expected-error mapping.
+- [x] 4.3 Build the authenticated responsive shell with portfolio switching and navigation for summary, operations, prices, allocation, and history.
+- [x] 4.4 Build the no-portfolio onboarding state and portfolio create, rename, and delete flows with accessible confirmation and feedback.
+- [x] 4.5 Add unit, repository, and Playwright coverage for multiple portfolios, EUR rejection, ownership, empty states, and lifecycle actions.
 
 ## 5. Instrument Management
 
-- [ ] 5.1 Implement instrument domain types and validation for FUND, ETF, and STOCK, including canonical ISIN normalization and validation.
-- [ ] 5.2 Implement the owner-scoped instrument repository and commands and queries for creation, listing, editing, and safe deletion.
-- [ ] 5.3 Enforce required ISIN for funds, per-user ISIN uniqueness, ticker-plus-market semantics for exchange-traded instruments, EUR-only use, and protection of referenced instruments.
-- [ ] 5.4 Build responsive instrument list and form experiences with type-aware fields, validation feedback, empty states, and clear referenced-instrument deletion errors.
-- [ ] 5.5 Add domain, database integration, authorization, and UI tests for all supported instrument types and identifier rules.
+- [x] 5.1 Implement instrument domain types and validation for FUND, ETF, and STOCK, including canonical ISIN normalization and validation.
+- [x] 5.2 Implement the owner-scoped instrument repository and commands and queries for creation, listing, editing, and safe deletion.
+- [x] 5.3 Enforce required ISIN for funds, per-user ISIN uniqueness, ticker-plus-market semantics for exchange-traded instruments, EUR-only use, and protection of referenced instruments.
+- [x] 5.4 Build responsive instrument list and form experiences with type-aware fields, validation feedback, empty states, and clear referenced-instrument deletion errors.
+- [x] 5.5 Add domain, database integration, authorization, and UI tests for all supported instrument types and identifier rules.
 
 ## 6. Ledger and Accounting Projection
 

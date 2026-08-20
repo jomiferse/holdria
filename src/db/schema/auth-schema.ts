@@ -46,6 +46,12 @@ export const account = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
+    // Not emitted by the `better-auth` 1.7.0 CLI generator, but required
+    // at runtime: `internal-adapter` reads/writes it on every credential
+    // account lookup (findCredentialAccount, updatePassword, ...) and
+    // insert fails with "field \"issuer\" does not exist" without it.
+    // Added by hand; drop this comment once the CLI generates it itself.
+    issuer: text("issuer"),
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
