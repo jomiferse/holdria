@@ -130,3 +130,23 @@ export async function remove(executor: DbExecutor, ownerId: UserId, id: LedgerEn
     .delete(ledgerEntries)
     .where(and(eq(ledgerEntries.ownerId, ownerId), eq(ledgerEntries.id, id)));
 }
+
+/**
+ * Distinct portfolio ids (owned by `ownerId`) with at least one BUY or SELL
+ * entry for `instrumentId` — the portfolios a correction to that
+ * instrument's price can affect. Used to invalidate exactly the affected
+ * portfolio analytics routes after a price observation is created, edited,
+ * or deleted (finding: "Price correction invalidation"), rather than
+ * invalidating every portfolio or none at all.
+ */
+export async function listPortfolioIdsTradingInstrument(
+  executor: DbExecutor,
+  ownerId: UserId,
+  instrumentId: string,
+): Promise<PortfolioId[]> {
+  const rows = await executor
+    .selectDistinct({ portfolioId: ledgerEntries.portfolioId })
+    .from(ledgerEntries)
+    .where(and(eq(ledgerEntries.ownerId, ownerId), eq(ledgerEntries.instrumentId, instrumentId)));
+  return rows.map((row) => row.portfolioId);
+}

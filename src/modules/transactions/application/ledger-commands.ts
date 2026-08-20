@@ -1,10 +1,13 @@
 import { db } from "@/db/client";
+import { toPortfolioId } from "@/modules/portfolio/domain/portfolio";
+import { lockOwnedPortfolioForUpdate } from "@/modules/portfolio/infrastructure/drizzle-portfolio-repository";
 import { InvariantViolationError } from "@/shared/domain/errors";
 import type { UserId } from "@/shared/domain/user-id";
 
 import {
   insert,
   listByPortfolio,
+  listPortfolioIdsTradingInstrument,
   remove,
   requireOwnedById,
   update,
@@ -95,6 +98,12 @@ export async function createLedgerEntry(
   const candidate = parseLedgerEntry(ownerId, input);
 
   return db.transaction(async (tx) => {
+    // Serializes this mutation against every other create/edit/delete/
+    // contribute-and-invest on the same portfolio (see
+    // `lockOwnedPortfolioForUpdate`): a concurrent mutation blocks here
+    // until this transaction commits or rolls back, so two concurrent
+    // overspends or oversells cannot both pass replay and commit.
+    await lockOwnedPortfolioForUpdate(tx, ownerId, toPortfolioId(candidate.portfolioId));
     const created = await insert(tx, ownerId, toValues(candidate));
     await validatePortfolioReplay(tx, ownerId, created.portfolioId, {
       label: "Adding this entry",
@@ -129,6 +138,9 @@ export async function editLedgerEntry(
 ): Promise<LedgerEntry> {
   return db.transaction(async (tx) => {
     const existing = await requireOwnedById(tx, ownerId, id);
+    // See `createLedgerEntry` — serializes against concurrent mutations of
+    // the same portfolio before the update and replay below.
+    await lockOwnedPortfolioForUpdate(tx, ownerId, toPortfolioId(existing.portfolioId));
     const candidate = parseLedgerEntry(ownerId, {
       ...input,
       id: existing.id,
@@ -153,6 +165,9 @@ export async function editLedgerEntry(
 export async function deleteLedgerEntry(ownerId: UserId, id: LedgerEntryId): Promise<void> {
   await db.transaction(async (tx) => {
     const existing = await requireOwnedById(tx, ownerId, id);
+    // See `createLedgerEntry` — serializes against concurrent mutations of
+    // the same portfolio before the delete and replay below.
+    await lockOwnedPortfolioForUpdate(tx, ownerId, toPortfolioId(existing.portfolioId));
     await remove(tx, ownerId, id);
     // No `mutatedEntry`: the removed entry can never appear in the
     // post-deletion replay, so any invariant failure here is always a
@@ -164,6 +179,11 @@ export async function deleteLedgerEntry(ownerId: UserId, id: LedgerEntryId): Pro
 /** Lists one owned portfolio's ledger in deterministic replay order. */
 export async function listLedgerEntries(ownerId: UserId, portfolioId: PortfolioId): Promise<LedgerEntry[]> {
   return listByPortfolio(db, ownerId, portfolioId);
+}
+
+/** Portfolio ids (owned by `ownerId`) that ever traded `instrumentId` — see `listPortfolioIdsTradingInstrument`. */
+export async function listPortfolioIdsForInstrument(ownerId: UserId, instrumentId: string): Promise<PortfolioId[]> {
+  return listPortfolioIdsTradingInstrument(db, ownerId, instrumentId);
 }
 
 export type { LedgerGroupId };

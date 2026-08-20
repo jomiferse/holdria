@@ -40,6 +40,9 @@ export async function reconstructPortfolioHistory(
   portfolioId: PortfolioId,
   dates?: readonly string[],
 ): Promise<PortfolioSnapshot[]> {
+  // See `getPortfolioAnalytics` — independently verifies ownership first.
+  await deps.requireOwnedPortfolio(ownerId, portfolioId);
+
   const entries = await deps.listLedgerEntries(ownerId, portfolioId);
 
   const snapshotDates = dates ?? (await defaultSnapshotDates(deps, ownerId, entries));

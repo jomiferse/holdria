@@ -29,6 +29,9 @@ export async function calculatePortfolioModifiedDietz(
   portfolioId: PortfolioId,
   period: ModifiedDietzPeriod = {},
 ): Promise<ModifiedDietzResult> {
+  // See `getPortfolioAnalytics` — independently verifies ownership first.
+  await deps.requireOwnedPortfolio(ownerId, portfolioId);
+
   const entries = await deps.listLedgerEntries(ownerId, portfolioId);
   const periodEnd = period.end ?? todayDateOnly();
 

@@ -1,5 +1,7 @@
 import { Decimal } from "decimal.js";
 
+import { DateOnly } from "@/shared/domain/date-only";
+import { assertWithinSupportedPrecision } from "@/shared/domain/decimal";
 import { ValidationError } from "@/shared/domain/errors";
 import type { UserId } from "@/shared/domain/user-id";
 
@@ -37,16 +39,19 @@ export type PriceSource = "MANUAL";
 /** EUR is the only currency this change supports. Kept as a distinct type (not hard-coded everywhere) so a future multi-currency change touches one place. */
 export type PriceCurrency = "EUR";
 
-const EFFECTIVE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Validates a date-only ISO string (`YYYY-MM-DD`). Financial dates are date-only; see design.md decision 7. */
+/**
+ * Validates a date-only ISO string (`YYYY-MM-DD`). Financial dates are
+ * date-only; see design.md decision 7.
+ *
+ * Delegates to the shared `DateOnly` parser rather than `Date.parse`, which
+ * silently rolls an impossible calendar date like "2026-02-30" forward into
+ * a real one ("2026-03-02") instead of rejecting it (finding: "Strict
+ * financial date validation") — `DateOnly.parse` re-derives the
+ * year/month/day from the constructed `Date` and rejects any mismatch, so
+ * every impossible day-of-month is caught, not just an out-of-range month.
+ */
 export function parseEffectiveDate(value: string): string {
-  if (!EFFECTIVE_DATE_PATTERN.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
-    throw new ValidationError("Effective date must be a valid date.", {
-      effectiveDate: ["Must be a valid date in YYYY-MM-DD format."],
-    });
-  }
-  return value;
+  return DateOnly.parse(value, "effectiveDate").toString();
 }
 
 /** Validates a manual price: a positive, finite decimal amount. Never a JavaScript `number` past this boundary. */
@@ -64,6 +69,10 @@ export function parsePriceValue(value: string | number): Decimal {
       price: ["Must be greater than zero."],
     });
   }
+  // Same precision policy as `Money`/`Quantity` — see
+  // `assertWithinSupportedPrecision`'s doc comment. `price_observations.price`
+  // is a `numeric(20, 8)` column exactly like the ledger's amount columns.
+  assertWithinSupportedPrecision(decimal, "price");
   return decimal;
 }
 

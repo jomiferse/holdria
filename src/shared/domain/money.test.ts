@@ -43,6 +43,21 @@ describe("Money", () => {
     const b = Money.fromDecimal("100.1");
     expect(a.compareTo(b)).toBe(0);
   });
+
+  // Finding: "Precision policy" — `fromInput` rejects a value the
+  // `numeric(20, 8)` column cannot store exactly, instead of persisting a
+  // silently rounded amount.
+  it("rejects an amount with more decimal places than the supported precision", () => {
+    expect(() => Money.fromInput("1.123456789", "amount")).toThrow(ValidationError);
+  });
+
+  it("rejects an amount with more integer digits than the supported precision", () => {
+    expect(() => Money.fromInput("1000000000000", "amount")).toThrow(ValidationError);
+  });
+
+  it("accepts an amount at exactly the supported precision boundary", () => {
+    expect(() => Money.fromInput("999999999999.12345678", "amount")).not.toThrow();
+  });
 });
 
 describe("formatEur", () => {

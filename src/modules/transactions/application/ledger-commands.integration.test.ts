@@ -10,7 +10,13 @@ import { portfolios } from "@/modules/portfolio/infrastructure/schema";
 import { InvariantViolationError, NotFoundError, ValidationError } from "@/shared/domain/errors";
 import { toUserId, type UserId } from "@/shared/domain/user-id";
 
-import { createLedgerEntry, deleteLedgerEntry, editLedgerEntry, listLedgerEntries } from "./ledger-commands";
+import {
+  createLedgerEntry,
+  deleteLedgerEntry,
+  editLedgerEntry,
+  listLedgerEntries,
+  listPortfolioIdsForInstrument,
+} from "./ledger-commands";
 import { ledgerEntries } from "../infrastructure/schema";
 
 /**
@@ -383,6 +389,132 @@ describe("ledger persistence (integration)", () => {
 
     const listed = await listLedgerEntries(ownerId, portfolioId);
     expect(listed).toHaveLength(3);
+  });
+
+  it("serializes two concurrent overspending buys so only one can commit", async () => {
+    // Cash covers exactly one of these two buys (500 each, cost 500), not
+    // both. Without per-portfolio serialization, two concurrent
+    // transactions could each read the pre-mutation ledger in their own
+    // snapshot, both pass replay validation against that stale state, and
+    // both commit — leaving cash negative. The portfolio row lock forces
+    // the second transaction to replay against the first's committed
+    // result, so exactly one must be rejected.
+    await createLedgerEntry(ownerId, {
+      type: "CONTRIBUTION",
+      portfolioId,
+      effectiveDate: "2026-01-01",
+      cashAmount: "500",
+    });
+
+    const attempt = () =>
+      createLedgerEntry(ownerId, {
+        type: "BUY",
+        portfolioId,
+        effectiveDate: "2026-01-02",
+        instrumentId,
+        quantity: "5",
+        unitPrice: "100",
+      });
+
+    const results = await Promise.allSettled([attempt(), attempt()]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(InvariantViolationError);
+
+    const listed = await listLedgerEntries(ownerId, portfolioId);
+    // Exactly one CONTRIBUTION and one BUY committed — never two buys.
+    expect(listed.filter((e) => e.type === "BUY")).toHaveLength(1);
+  });
+
+  it("serializes two concurrent oversell attempts so only one can commit", async () => {
+    // A single held position of 5 units. Two concurrent full sells of all 5
+    // units race; only one may commit without leaving units negative.
+    await createLedgerEntry(ownerId, {
+      type: "CONTRIBUTION",
+      portfolioId,
+      effectiveDate: "2026-01-01",
+      cashAmount: "1000",
+    });
+    await createLedgerEntry(ownerId, {
+      type: "BUY",
+      portfolioId,
+      effectiveDate: "2026-01-02",
+      instrumentId,
+      quantity: "5",
+      unitPrice: "100",
+    });
+
+    const attempt = () =>
+      createLedgerEntry(ownerId, {
+        type: "SELL",
+        portfolioId,
+        effectiveDate: "2026-01-03",
+        instrumentId,
+        quantity: "5",
+        unitPrice: "100",
+      });
+
+    const results = await Promise.allSettled([attempt(), attempt()]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(InvariantViolationError);
+
+    const listed = await listLedgerEntries(ownerId, portfolioId);
+    expect(listed.filter((e) => e.type === "SELL")).toHaveLength(1);
+  });
+
+  it("identifies exactly the portfolios that traded an instrument, for precise price-correction invalidation", async () => {
+    const [otherInstrument] = await db
+      .insert(instruments)
+      .values({ ownerId, type: "STOCK", name: "Untraded Corp", ticker: "UNT", market: "XMAD" })
+      .returning();
+    const [otherPortfolio] = await db
+      .insert(portfolios)
+      .values({ ownerId, name: "Second Portfolio" })
+      .returning();
+
+    await createLedgerEntry(ownerId, {
+      type: "CONTRIBUTION",
+      portfolioId,
+      effectiveDate: "2026-01-01",
+      cashAmount: "1000",
+    });
+    await createLedgerEntry(ownerId, {
+      type: "BUY",
+      portfolioId,
+      effectiveDate: "2026-01-02",
+      instrumentId,
+      quantity: "1",
+      unitPrice: "100",
+    });
+    await createLedgerEntry(ownerId, {
+      type: "CONTRIBUTION",
+      portfolioId: otherPortfolio.id,
+      effectiveDate: "2026-01-01",
+      cashAmount: "1000",
+    });
+    await createLedgerEntry(ownerId, {
+      type: "BUY",
+      portfolioId: otherPortfolio.id,
+      effectiveDate: "2026-01-02",
+      instrumentId,
+      quantity: "1",
+      unitPrice: "100",
+    });
+
+    const tradedIn = await listPortfolioIdsForInstrument(ownerId, instrumentId);
+    expect(new Set(tradedIn)).toEqual(new Set([portfolioId, otherPortfolio.id]));
+
+    const untradedIn = await listPortfolioIdsForInstrument(ownerId, otherInstrument.id);
+    expect(untradedIn).toHaveLength(0);
+
+    await db.delete(ledgerEntries).where(eq(ledgerEntries.portfolioId, otherPortfolio.id));
+    await db.delete(portfolios).where(eq(portfolios.id, otherPortfolio.id));
+    await db.delete(instruments).where(eq(instruments.id, otherInstrument.id));
   });
 
   it("never lets one owner read, edit, or delete another owner's entry", async () => {

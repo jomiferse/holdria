@@ -124,4 +124,39 @@ describe("contributeAndInvest (integration)", () => {
     const listed = await listLedgerEntries(ownerId, portfolioId);
     expect(listed).toHaveLength(2); // only the first, successful group
   });
+
+  it("serializes two concurrent contribute-and-invest calls on the same portfolio without corrupting the ledger", async () => {
+    // Each call funds its own buy, so this is not an overspend race, but it
+    // proves contribute-and-invest takes the same per-portfolio lock as
+    // create/edit/delete (see `lockOwnedPortfolioForUpdate`): both groups
+    // commit fully, each contribution stays ordered before its own buy, and
+    // no sequence is duplicated or interleaved incorrectly under
+    // concurrency.
+    const [first, second] = await Promise.all([
+      contributeAndInvest(ownerId, {
+        portfolioId,
+        effectiveDate: "2026-01-01",
+        cashAmount: "1000",
+        instrumentId,
+        quantity: "5",
+        unitPrice: "100",
+      }),
+      contributeAndInvest(ownerId, {
+        portfolioId,
+        effectiveDate: "2026-01-01",
+        cashAmount: "500",
+        instrumentId,
+        quantity: "2",
+        unitPrice: "100",
+      }),
+    ]);
+
+    expect(first.contribution.sequence!).toBeLessThan(first.buy.sequence!);
+    expect(second.contribution.sequence!).toBeLessThan(second.buy.sequence!);
+
+    const listed = await listLedgerEntries(ownerId, portfolioId);
+    expect(listed).toHaveLength(4);
+    const sequences = listed.map((e) => String(e.sequence));
+    expect(new Set(sequences).size).toBe(4);
+  });
 });

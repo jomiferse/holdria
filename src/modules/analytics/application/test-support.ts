@@ -10,6 +10,7 @@ import { toInstrumentId as toPricingInstrumentId, toPriceObservationId } from "@
 import type { PriceObservationRepository } from "@/modules/pricing/domain/price-observation-repository";
 import type { LedgerEntry, PortfolioId } from "@/modules/transactions/domain/ledger-entry";
 import { toDecimal } from "@/shared/domain/decimal";
+import { NotFoundError } from "@/shared/domain/errors";
 import { toUserId, type UserId } from "@/shared/domain/user-id";
 
 import type { PortfolioAnalyticsDeps } from "./deps";
@@ -81,10 +82,26 @@ export const fundInstrument: Instrument = {
   updatedAt: new Date(),
 };
 
-export function makeDeps(entries: LedgerEntry[], observations: PriceObservation[]): PortfolioAnalyticsDeps {
+/**
+ * `owned` defaults to `true` (the actor owns `portfolioId`); pass `false`
+ * to simulate a foreign or nonexistent portfolio for cross-tenant
+ * authorization tests (finding: "Analytics authorization") — `deps` then
+ * behaves exactly like the real `requireOwnedPortfolio`, throwing
+ * `NotFoundError` before any other dependency is read.
+ */
+export function makeDeps(
+  entries: LedgerEntry[],
+  observations: PriceObservation[],
+  owned = true,
+): PortfolioAnalyticsDeps {
   return {
     listLedgerEntries: async () => entries,
     listOwnedInstruments: async () => [fundInstrument],
     priceObservationRepository: new FakePriceObservationRepository(observations),
+    requireOwnedPortfolio: async () => {
+      if (!owned) {
+        throw new NotFoundError("Portfolio not found.");
+      }
+    },
   };
 }

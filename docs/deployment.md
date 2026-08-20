@@ -203,15 +203,30 @@ explicit release step, so that:
    (`.github/workflows/release.yml`) exposes this as its own `migrate`
    job, gated behind a GitHub Environment an operator configures per
    target (staging/production), so it only runs when explicitly
-   dispatched with that environment selected — see the job's comments
-   for setup. Running it by hand against a target database (e.g. from an
-   operator's own machine, or a one-off deployment host command) is
-   equally valid; the workflow job exists for auditability and optional
-   reviewer gating, not because it is the only supported path.
-3. Only after migrations have been applied should new application
-   replicas serving the new schema be rolled out (or an existing replica
-   restarted onto the new image) — see the `docker`/`migrate` job
-   ordering in the release workflow.
+   dispatched (`workflow_dispatch`) with that environment selected — see
+   the job's comments for setup. Running it by hand against a target
+   database (e.g. from an operator's own machine, or a one-off deployment
+   host command) is equally valid; the workflow job exists for
+   auditability and optional reviewer gating, not because it is the only
+   supported path.
+3. Only after migrations have been applied — and `pnpm verify:migrations`
+   (`scripts/verify-migration-set.mjs`) confirms the target database's
+   applied migrations are the *exact same ordered set* this release
+   ships (same count, same per-migration content hash, same order — not
+   just a count comparison, which cannot tell "the right migrations"
+   apart from "some other migrations that happen to total the same
+   number") — should new application replicas serving the new schema be
+   rolled out (or an existing replica restarted onto the new image). The
+   release workflow enforces this at the image level, not just by job
+   ordering: `docker` pushes only an immutable, content-addressed
+   candidate tag (`sha-<commit>`), never `:latest` or the release's own
+   tag name, so nothing tracking a deployable tag can pull an unmigrated
+   build. Only the `promote` job — which runs after `migrate` succeeds,
+   gated behind the same environment/manual approval, and consumes the
+   exact digest `docker` pushed in that same dispatched run — re-tags
+   that digest (no rebuild) as the deployable tag(s) an operator's
+   deployment actually tracks. Trigger any deployment step from
+   `promote`'s success, not from `docker`'s.
 4. Rollback: before real user data exists, the simplest rollback is
    dropping and recreating the schema from `drizzle/`. Once production
    data exists, roll back the *application* to the prior compatible
@@ -283,19 +298,62 @@ reverse-proxy section above for which to use where).
 
 ## Release workflow
 
-`.github/workflows/release.yml` runs, on every push and pull request:
-lint, both production builds (`next build` and `next build --webpack`),
-type checking, unit tests, PostgreSQL-backed integration tests, and
-Playwright end-to-end tests against a throwaway `holdria_test` database
-in a service container — then builds and smoke-tests the production
-Docker image (starts it against a throwaway PostgreSQL container and
-checks both health endpoints). On `main`/tags it also pushes the image to
-GHCR. The separate `migrate` job (previous section) only runs on manual
-dispatch with an explicit target environment.
+`.github/workflows/release.yml` has four jobs: `checks` -> `docker` ->
+`migrate` -> `promote`.
 
-Nothing in the checks or docker jobs touches a real staging/production
-database or deployment target — only the `migrate` job does, and only
-when explicitly invoked.
+`checks` runs, on every push and pull request: lint, both production
+builds (`next build` and `next build --webpack`), type checking, unit
+tests, PostgreSQL-backed integration tests, and Playwright end-to-end
+tests against a throwaway `holdria_test` database in a service container.
+`docker` then builds and smoke-tests the production Docker image (starts
+it against a throwaway PostgreSQL container and checks both health
+endpoints); nothing in `checks` or `docker` touches a real
+staging/production database or deployment target.
+
+`docker` also pushes an immutable candidate image tag, `sha-<commit>` —
+never `:latest` or the release's own tag name (finding: "Release gating"
+— a deployable tag must never become pullable before its migration has
+succeeded) — on two kinds of trigger:
+
+- an ordinary `push` to `main`/a `v*` tag, purely for audit/testing of
+  that commit's image; `migrate`/`promote` never run for a `push` event,
+  so this alone can never make a deployable tag pullable;
+- a `workflow_dispatch` run — **the real release path**. A single
+  dispatched run (with `environment` set to a configured GitHub
+  Environment) builds and pushes its own candidate in that same run,
+  captures the exact digest as a job output (`docker.outputs.candidate-digest`),
+  and passes it on to `migrate` and `promote` below. A dispatched run's
+  candidate publication and its migration/promotion are never split
+  across separate, mutually exclusive triggers — the same run does both,
+  so there is always a digest for `migrate`/`promote` to act on.
+
+`migrate` and `promote` both run only for that `workflow_dispatch` path
+(`github.event_name == 'workflow_dispatch' && inputs.environment != ''`),
+gated behind the same GitHub Environment approval:
+
+1. `migrate` applies the reviewed migration(s) to that environment's
+   database (previous section), then runs `pnpm verify:migrations`
+   (`scripts/verify-migration-set.mjs`) — a schema compatibility check
+   that compares the *complete ordered set* of migrations this checkout
+   ships against what `drizzle.__drizzle_migrations` actually records:
+   same count, same per-migration identity (the sha256 content hash
+   `drizzle-orm`'s own migrator computes and stores — not an invented
+   parallel version scheme), same order. It fails the job (and blocks
+   promotion) if a required migration is missing, an unexpected one is
+   present, the order/identity doesn't match, or the database is
+   otherwise not at exactly the schema state this release expects.
+2. `promote` — which only runs if both `docker` and `migrate` succeeded
+   — re-tags the exact digest `docker` pushed in this run (via
+   `docker buildx imagetools create`, no rebuild — the promoted bytes are
+   byte-identical to what `checks` and `migrate` verified) as `:latest`
+   (dispatched against `main`) or the pushed tag's own name (a `v*`
+   tag), the tag(s) an operator's deployment or autoscaling actually
+   tracks. Trigger any deployment step (redeploying a service, restarting
+   replicas onto the new image) from `promote`'s success.
+
+Nothing makes a deployable tag pullable except `promote`, and `promote`
+never runs unless this same dispatched run's own `migrate` step already
+succeeded against the named environment's database.
 
 ## Clean deployment verification
 

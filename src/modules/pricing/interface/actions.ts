@@ -13,7 +13,9 @@ import {
   deletePriceObservationSchema,
   editPriceObservationSchema,
 } from "@/modules/pricing/interface/schema";
+import { listPortfolioIdsForInstrument } from "@/modules/transactions/application/ledger-commands";
 import { isDomainError } from "@/shared/domain/errors";
+import type { UserId } from "@/shared/domain/user-id";
 import { logUnexpectedError } from "@/shared/infrastructure/logging";
 
 /** Shared result shape for pricing's price-observation Server Actions. */
@@ -23,6 +25,25 @@ export type PriceObservationActionState =
   | { status: "error"; message: string; fieldErrors?: Record<string, string[]> };
 
 const PRICES_PATH = "/prices";
+
+/**
+ * Invalidates every route that reads this instrument's price through
+ * portfolio analytics (finding: "Price correction invalidation") —
+ * summary/return (the portfolio's index page), allocation, and history —
+ * for exactly the portfolios that have ever traded it, so a correction is
+ * reflected on next client navigation without a hard reload. Precise
+ * rather than conservative: it queries the ledger for portfolios that
+ * actually hold a BUY/SELL of `instrumentId` instead of revalidating every
+ * portfolio the owner has.
+ */
+async function invalidateAffectedPortfolioAnalytics(ownerId: UserId, instrumentId: string): Promise<void> {
+  const portfolioIds = await listPortfolioIdsForInstrument(ownerId, instrumentId);
+  for (const portfolioId of portfolioIds) {
+    revalidatePath(`/portfolios/${portfolioId}`);
+    revalidatePath(`/portfolios/${portfolioId}/allocation`);
+    revalidatePath(`/portfolios/${portfolioId}/history`);
+  }
+}
 
 function toErrorState(error: unknown, fallbackMessage: string): PriceObservationActionState {
   if (isDomainError(error)) {
@@ -53,8 +74,9 @@ export async function createPriceObservationAction(
     };
   }
 
+  let ownerId: UserId;
   try {
-    const ownerId = (await requireVerifiedActor()).userId;
+    ownerId = (await requireVerifiedActor()).userId;
     await recordPriceObservation(priceObservationRepository, {
       ownerId,
       instrumentId: toInstrumentId(parsed.data.instrumentId),
@@ -67,6 +89,7 @@ export async function createPriceObservationAction(
   }
 
   revalidatePath(PRICES_PATH);
+  await invalidateAffectedPortfolioAnalytics(ownerId, parsed.data.instrumentId);
   return { status: "success", message: "Price recorded." };
 }
 
@@ -88,9 +111,11 @@ export async function editPriceObservationAction(
     };
   }
 
+  let ownerId: UserId;
+  let updated;
   try {
-    const ownerId = (await requireVerifiedActor()).userId;
-    await editPriceObservation(priceObservationRepository, ownerId, toPriceObservationId(parsed.data.id), {
+    ownerId = (await requireVerifiedActor()).userId;
+    updated = await editPriceObservation(priceObservationRepository, ownerId, toPriceObservationId(parsed.data.id), {
       price: parsed.data.price,
       effectiveDate: parsed.data.effectiveDate,
     });
@@ -99,6 +124,7 @@ export async function editPriceObservationAction(
   }
 
   revalidatePath(PRICES_PATH);
+  await invalidateAffectedPortfolioAnalytics(ownerId, updated.instrumentId);
   return { status: "success", message: "Price updated." };
 }
 
@@ -112,13 +138,23 @@ export async function deletePriceObservationAction(
     return { status: "error", message: "Invalid price observation." };
   }
 
+  let ownerId: UserId;
+  let instrumentId: string | undefined;
   try {
-    const ownerId = (await requireVerifiedActor()).userId;
-    await deletePriceObservation(priceObservationRepository, ownerId, toPriceObservationId(parsed.data.id));
+    ownerId = (await requireVerifiedActor()).userId;
+    const id = toPriceObservationId(parsed.data.id);
+    // Looked up before deleting so the affected portfolios can still be
+    // identified afterward — once the row is gone, its instrument link
+    // would be too.
+    instrumentId = (await priceObservationRepository.findOwnedById(ownerId, id))?.instrumentId;
+    await deletePriceObservation(priceObservationRepository, ownerId, id);
   } catch (error) {
     return toErrorState(error, "Could not delete the price observation.");
   }
 
   revalidatePath(PRICES_PATH);
+  if (instrumentId) {
+    await invalidateAffectedPortfolioAnalytics(ownerId, instrumentId);
+  }
   return { status: "success", message: "Price deleted." };
 }

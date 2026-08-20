@@ -9,11 +9,13 @@ import { reconstructPortfolioHistory, type PortfolioSnapshot } from "../applicat
 export type { PortfolioAnalytics, PortfolioSnapshot, ModifiedDietzResult };
 
 /**
- * `portfolioId` is the route param string. It is not re-validated against
- * the portfolio module's own branded `PortfolioId` here — every analytics
- * read is itself scoped by `ownerId` down to `ledger_entries`, so a
- * mistyped or foreign id simply yields an empty ledger and a zero-value
- * portfolio, never another owner's data.
+ * `portfolioId` is the route param string, not re-validated against the
+ * portfolio module's own branded `PortfolioId` type here — each function
+ * below independently verifies `portfolioId` is owned by `ownerId` (see
+ * `PortfolioAnalyticsDeps.requireOwnedPortfolio`) before reading anything
+ * else, so a mistyped, nonexistent, or foreign (another owner's) id all
+ * throw the same `NotFoundError` rather than ever exposing another owner's
+ * data or distinguishing "not yours" from "does not exist".
  */
 
 /** Server Component read model: current valuation, result, and allocation for one owned portfolio. */

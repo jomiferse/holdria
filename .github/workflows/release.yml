@@ -1,12 +1,36 @@
 name: Release
 
-# Task 10.4 (openspec/changes/build-holdria-mvp): checks -> build app +
-# Docker image -> migrate as an explicit, separately-gated release step.
-# No application replica ever runs migrations itself (design.md decision
-# 11) — only this workflow's `migrate` job, and only against an
-# environment an operator has configured with its own database secret and
-# (for staging/production) required reviewers under
+# Task 10.4 (openspec/changes/build-holdria-mvp): checks -> build an
+# immutable candidate Docker image -> migrate as an explicit,
+# separately-gated release step -> only then promote the candidate's
+# digest to a deployable tag. No application replica ever runs migrations
+# itself (design.md decision 11) — only this workflow's `migrate` job, and
+# only against an environment an operator has configured with its own
+# database secret and (for staging/production) required reviewers under
 # Settings -> Environments.
+#
+# Finding: "Release gating" — a deployable tag (`:latest` or the pushed git
+# tag's own name) must never become pullable before its migration has
+# succeeded, since any deployment or autoscaling event tracking that tag
+# could pick it up immediately. `docker` therefore only ever pushes an
+# immutable, content-addressed candidate tag (`sha-<commit>`); `promote`
+# re-tags that exact digest — no rebuild, so the bytes a deployment
+# eventually runs are byte-identical to what `checks` and `migrate`
+# verified — as the deployable tag(s), and only runs after `migrate`
+# succeeds.
+#
+# `workflow_dispatch` (with `environment` set) is THE release path: a
+# single dispatched run builds and pushes its own candidate, captures that
+# run's exact digest as a job output, requires the named GitHub
+# Environment's approval before `migrate` touches a real database, applies
+# and exactly verifies the migration set, and only then lets `promote`
+# consume that same digest. `docker` also pushes a candidate on ordinary
+# `push` events (to `main`/tags) purely for audit/testing of that commit —
+# but `migrate`/`promote` never run for a `push` event, so a plain push
+# can never publish a deployable tag; only a dispatched run naming an
+# environment can (requirement: never split candidate publication and
+# promotion across mutually exclusive event paths — a dispatched run must
+# always have its own candidate digest to migrate and promote).
 
 on:
   push:
@@ -83,6 +107,7 @@ jobs:
       - run: pnpm exec next build --webpack # verify the non-default bundler build stays green
 
       - run: pnpm db:migrate # apply the reviewed migration before integration/e2e tests run against it
+      - run: pnpm verify:migrations # exercise the release workflow's own migration-set check on every push/PR, not just at release time
       - run: pnpm test
       - run: pnpm test:integration
 
@@ -110,6 +135,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      # The immutable candidate's fully qualified, content-addressed
+      # reference (`repo@sha256:...`). `promote` re-tags exactly this
+      # digest — never a mutable tag that could have moved between jobs.
+      candidate-digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -160,22 +190,32 @@ jobs:
         run: docker rm -f holdria-ci-app holdria-ci-postgres 2>/dev/null; docker network rm holdria-ci 2>/dev/null || true
 
       - name: Log in to GHCR
-        if: github.event_name == 'push'
+        # `push` publishes a candidate for audit/testing of that commit.
+        # `workflow_dispatch` is the real release path (see the workflow
+        # header comment) — it must push its own candidate in this same
+        # run, since `migrate`/`promote` below only ever run on
+        # `workflow_dispatch` and need this run's digest, not a candidate
+        # some earlier `push` event may or may not have produced.
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image
-        if: github.event_name == 'push'
+      - name: Push immutable candidate image
+        # Only ever a content-addressed candidate tag — never `:latest` or
+        # the pushed tag's own name (`${{ github.ref_name }}`). Those
+        # deployable tags are promoted separately, only after `migrate`
+        # succeeds (see the `promote` job) — a replica or operator tracking
+        # them must never observe a build whose migration has not run yet.
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
-            ghcr.io/${{ github.repository }}:${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+          tags: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -194,7 +234,11 @@ jobs:
   # unset, this job is skipped — a normal push never migrates anything.
   # ---------------------------------------------------------------------
   migrate:
-    if: github.event_name == 'workflow_dispatch' && inputs.environment != ''
+    # See `promote`'s comment: a job-level `if:` drops the default
+    # implicit `needs` success check, so it is spelled out explicitly here
+    # too — this job must never migrate a real database from a checkout
+    # whose own `docker` build/smoke-test job failed.
+    if: github.event_name == 'workflow_dispatch' && inputs.environment != '' && needs.docker.result == 'success'
     needs: docker
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -216,3 +260,58 @@ jobs:
 
       - name: Apply reviewed migrations
         run: pnpm db:migrate
+
+      - name: Verify applied migration set exactly matches this release's migration history
+        # Schema compatibility check (`scripts/verify-migration-set.mjs`):
+        # compares the complete ORDERED set of migrations this checkout
+        # ships against what `drizzle.__drizzle_migrations` actually
+        # records — same count, same identity (each migration's sha256
+        # content hash, computed exactly the way `drizzle-orm`'s own
+        # migrator computes and stores it), same order. A missing
+        # migration, an unexpected extra one, a reordering, or any
+        # identity mismatch fails this step before `promote` can make the
+        # image deployable — not just a count comparison, which cannot
+        # distinguish "the right migrations" from "some other migrations
+        # that happen to be the same number."
+        run: pnpm verify:migrations
+
+  # ---------------------------------------------------------------------
+  # Only after `migrate` succeeds: promote the exact candidate digest
+  # `docker` pushed to the deployable tag(s) an operator's deployment
+  # actually tracks (`:latest` on `main`, or the pushed git tag's own
+  # name). `imagetools create` re-tags the existing manifest by digest —
+  # no rebuild — so the bytes made deployable here are byte-identical to
+  # what `checks` and `migrate` verified. Runs only under the same
+  # condition as `migrate` (a dispatched run naming a configured
+  # environment); a normal push never promotes anything, matching
+  # `migrate`'s own gating.
+  # ---------------------------------------------------------------------
+  promote:
+    # A job-level `if:` replaces the default implicit `success()` check on
+    # `needs`, so `needs.migrate.result == 'success'` is spelled out here
+    # explicitly — without it, this job could run even after a failed
+    # `migrate`, promoting an unmigrated candidate to a deployable tag.
+    if: github.event_name == 'workflow_dispatch' && inputs.environment != '' && needs.docker.result == 'success' && needs.migrate.result == 'success'
+    needs: [docker, migrate]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote candidate digest to the deployable tag(s)
+        run: |
+          set -euo pipefail
+          digest="${{ needs.docker.outputs.candidate-digest }}"
+          tag="${{ github.ref_name == 'main' && 'latest' || github.ref_name }}"
+          echo "Promoting ghcr.io/${{ github.repository }}@${digest} -> ghcr.io/${{ github.repository }}:${tag}"
+          docker buildx imagetools create \
+            --tag "ghcr.io/${{ github.repository }}:${tag}" \
+            "ghcr.io/${{ github.repository }}@${digest}"

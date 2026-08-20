@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { createBuy, createContribution } from "@/modules/transactions/domain/ledger-entry";
 import type { LedgerEntry } from "@/modules/transactions/domain/ledger-entry";
+import { NotFoundError } from "@/shared/domain/errors";
 
 import { calculatePortfolioModifiedDietz } from "./modified-dietz-return";
+import { reconstructPortfolioHistory } from "./portfolio-history";
 import { getPortfolioAnalytics } from "./portfolio-analytics";
 import { instrumentId, makeDeps, owner, portfolioId, priceObservation, seq } from "./test-support";
 
@@ -108,5 +110,28 @@ describe("calculatePortfolioModifiedDietz", () => {
     const result = await calculatePortfolioModifiedDietz(deps, owner, portfolioId, { end: "2026-01-31" });
 
     expect(result.status).toBe("unavailable");
+  });
+});
+
+describe("analytics authorization (finding: cross-tenant denial)", () => {
+  // Every exported analytics use case independently verifies ownership of
+  // the portfolio before reading anything else — a foreign portfolio (owned
+  // by someone else) and a nonexistent one are indistinguishable, both
+  // rejected with `NotFoundError` by the same `requireOwnedPortfolio` check
+  // `makeDeps(..., owned: false)` simulates.
+
+  it("getPortfolioAnalytics rejects a portfolio the actor does not own before reading ledger or instrument data", async () => {
+    const deps = makeDeps([], [], false);
+    await expect(getPortfolioAnalytics(deps, owner, portfolioId)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("calculatePortfolioModifiedDietz rejects a portfolio the actor does not own", async () => {
+    const deps = makeDeps([], [], false);
+    await expect(calculatePortfolioModifiedDietz(deps, owner, portfolioId)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("reconstructPortfolioHistory rejects a portfolio the actor does not own", async () => {
+    const deps = makeDeps([], [], false);
+    await expect(reconstructPortfolioHistory(deps, owner, portfolioId)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

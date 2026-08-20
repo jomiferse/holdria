@@ -95,6 +95,10 @@ export const auth = betterAuth({
     },
   },
   user: {
+    // Enabled for Better Auth's own feature detection and schema
+    // generation, but `auth-gateway.ts`'s `deleteAccount` never calls
+    // `auth.api.deleteUser` — see `account-deletion.ts`'s doc comment for
+    // why that handler is not relied on to be transactionally atomic.
     deleteUser: {
       enabled: true,
     },

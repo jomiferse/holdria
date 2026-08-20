@@ -1,6 +1,6 @@
 import { ValidationError } from "@/shared/domain/errors";
 
-import { FinancialDecimal, toDecimal, type Decimal } from "./decimal";
+import { assertWithinSupportedPrecision, FinancialDecimal, toDecimal, type Decimal } from "./decimal";
 
 /**
  * Holdria is EUR-only for the MVP (see design.md decision 5 and 7), but
@@ -166,5 +166,6 @@ export function parseFinancialInput(value: string | number, field: string): Deci
       [field]: ["Must be a finite number"],
     });
   }
+  assertWithinSupportedPrecision(decimal, field);
   return decimal;
 }

@@ -290,7 +290,11 @@ describe("reduceLedger", () => {
   it("golden case: a repeating-decimal average cost still fully zeroes on a full sell", () => {
     // 100 / 3 = 33.333...; decimal.js retains far more precision than a
     // JS number could, and a full sell must still zero openCost exactly
-    // (no residue) rather than leaving a rounding artifact.
+    // (no residue) rather than leaving a rounding artifact. `unitPrice`
+    // carries the maximum 8 decimal places the supported numeric
+    // precision policy allows (shared/domain/decimal.ts) — still not a
+    // terminating fraction of 3, so it still exercises the same
+    // repeating-decimal cancellation behavior.
     const entries = [
       seq(createContribution(owner, { portfolioId, effectiveDate: "2026-01-01", cashAmount: "1000" }), 1),
       seq(
@@ -299,7 +303,7 @@ describe("reduceLedger", () => {
           effectiveDate: "2026-01-02",
           instrumentId: instrumentA,
           quantity: "3",
-          unitPrice: "33.333333333333333333",
+          unitPrice: "33.33333333",
         }),
         2,
       ),

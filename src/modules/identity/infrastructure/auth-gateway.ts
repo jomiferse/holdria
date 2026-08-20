@@ -11,6 +11,7 @@ import {
 } from "@/shared/domain/errors";
 import { EmailNotVerifiedError } from "@/modules/identity/domain/errors";
 
+import { deleteAccountAtomically } from "./account-deletion";
 import { auth } from "./auth";
 import { applyAuthResponseCookies } from "./cookie-bridge";
 
@@ -169,19 +170,26 @@ export async function changePassword(input: {
 /**
  * Permanently deletes the current user, requiring the fresh-session or
  * password confirmation the identity spec's "Account deletion lacks
- * security confirmation" scenario calls for. Better Auth verifies
- * `password` when supplied and otherwise relies on its own session
- * freshness middleware; `auth.ts`'s `session.freshAge` bounds that window.
+ * security confirmation" scenario calls for.
+ *
+ * Deliberately does not call Better Auth's `auth.api.deleteUser` for the
+ * deletion itself — see `deleteAccountAtomically`'s doc comment for why
+ * that handler cannot be relied on to be transactionally atomic. The
+ * password/freshness confirmation and the actual deletion both happen in
+ * `deleteAccountAtomically`; this function only clears the session cookie
+ * afterward, reusing Better Auth's own `/sign-out` handler (safe even
+ * though the session row is already gone via cascade).
  */
 export async function deleteAccount(input: { password?: string }): Promise<void> {
   try {
-    const result = await auth.api.deleteUser({
-      body: input.password ? { password: input.password } : {},
-      headers: await requestHeaders(),
-      returnHeaders: true,
-    });
-    await applyAuthResponseCookies(result.headers);
+    await deleteAccountAtomically(await requestHeaders(), input);
   } catch (error) {
     mapAuthError(error);
   }
+
+  const result = await auth.api.signOut({
+    headers: await requestHeaders(),
+    returnHeaders: true,
+  });
+  await applyAuthResponseCookies(result.headers);
 }

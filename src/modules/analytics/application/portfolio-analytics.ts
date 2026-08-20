@@ -31,6 +31,10 @@ export async function getPortfolioAnalytics(
   portfolioId: PortfolioId,
   asOfDate: string = todayDateOnly(),
 ): Promise<PortfolioAnalytics> {
+  // Independently verifies ownership before reading any other data (finding:
+  // "Analytics authorization") — never relies on route/layout protection.
+  await deps.requireOwnedPortfolio(ownerId, portfolioId);
+
   const [entries, instruments] = await Promise.all([
     deps.listLedgerEntries(ownerId, portfolioId),
     deps.listOwnedInstruments(ownerId),

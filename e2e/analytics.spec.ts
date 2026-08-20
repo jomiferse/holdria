@@ -221,6 +221,88 @@ test.describe("analytics and the ledger", () => {
     await expect(page.getByText(/negative/i).first()).toBeVisible();
   });
 
+  test("a price correction updates summary, allocation, and history through client navigation, with no hard reload", async ({
+    authenticatedPage: page,
+  }) => {
+    const portfolioId = await createPortfolio(page, "Price Correction Portfolio");
+    await addInstrument(page, { name: "Correction Fund", isin: "IE00B4L5Y983" });
+
+    await page.getByRole("link", { name: "Operations" }).click();
+    await page.getByRole("button", { name: "Contribute & invest" }).first().click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Effective date").fill("2026-01-01");
+    await dialog.getByLabel("Contribution amount (EUR)").fill("1000");
+    await dialog.getByLabel("Instrument").selectOption({ label: "Correction Fund (FUND)" });
+    await dialog.getByLabel("Quantity").fill("10");
+    await dialog.getByLabel("Unit price (EUR)").fill("100");
+    await dialog.getByRole("button", { name: "Contribute & invest" }).click();
+    await expect(page.getByText("Contribution and buy recorded.")).toBeVisible();
+
+    await recordPrice(page, "Correction Fund", "110", "2026-02-01");
+
+    // Establishes the pre-correction figures on every affected view —
+    // cash 0, position 10*110 = 1100.
+    await page.goto(`/portfolios/${portfolioId}`);
+    await expect(page.getByTestId("portfolio-total-value")).toHaveText(/1\.100,00/);
+
+    await page.getByRole("link", { name: "Allocation" }).click();
+    await expect(page.getByRole("heading", { name: "By instrument", exact: true })).toBeVisible();
+    await expect(page.getByText("1.100,00 €").first()).toBeVisible();
+
+    await page.getByRole("link", { name: "History" }).click();
+    await expect(page.getByRole("img", { name: "Portfolio value over time" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "1.100,00 €" }).first()).toBeVisible();
+
+    // A marker set on this page's `window` proves every assertion below
+    // happens without this tab's JS context ever being torn down by a
+    // hard navigation — the correction itself happens in a second tab
+    // (manual prices are instrument-scoped, not portfolio-scoped, and
+    // reached through the standalone `/prices` route — see
+    // `missing-price-note.tsx` — which this tab, parked on the History
+    // view, is never navigated to).
+    await page.evaluate(() => {
+      (window as unknown as { __e2eNoReloadMarker?: string }).__e2eNoReloadMarker = "still-here";
+    });
+    const stillClientSide = () =>
+      expect(page.evaluate(() => (window as unknown as { __e2eNoReloadMarker?: string }).__e2eNoReloadMarker)).resolves.toBe(
+        "still-here",
+      );
+
+    const pricesPage = await page.context().newPage();
+    await pricesPage.goto("/prices");
+    await pricesPage.getByRole("button", { name: "Edit" }).click();
+    const editDialog = pricesPage.getByRole("dialog");
+    await editDialog.getByLabel("Price (EUR)").fill("130");
+    await editDialog.getByRole("button", { name: "Save correction" }).click();
+    await expect(pricesPage.getByText("130.0000 EUR")).toBeVisible();
+    await pricesPage.close();
+
+    // Back on the original tab, still on the History view it never left:
+    // every navigation from here on is a client-side `<Link>` click
+    // between the portfolio's own tabs.
+    await stillClientSide();
+    await page.getByRole("link", { name: "Summary" }).click();
+    await stillClientSide();
+
+    // Position value now 10*130 = 1300 with no cash — corrected on the
+    // summary view without a reload.
+    await expect(page.getByTestId("portfolio-total-value")).toHaveText(/1\.300,00/);
+    await expect(page.getByTestId("portfolio-absolute-result")).toHaveText(/300,00/);
+    await expect(page.getByTestId("portfolio-return")).not.toHaveText("Unavailable");
+    await stillClientSide();
+
+    await page.getByRole("link", { name: "Allocation" }).click();
+    await expect(page.getByRole("heading", { name: "By instrument", exact: true })).toBeVisible();
+    await expect(page.getByText("1.300,00 €").first()).toBeVisible();
+    await expect(page.getByText("1.100,00 €")).toHaveCount(0);
+    await stillClientSide();
+
+    await page.getByRole("link", { name: "History" }).click();
+    await expect(page.getByRole("img", { name: "Portfolio value over time" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "1.300,00 €" }).first()).toBeVisible();
+    await stillClientSide();
+  });
+
   test("does not let one user reach another user's operations or prices", async ({
     authenticatedPage: page,
     browser,

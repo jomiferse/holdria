@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:auth:generate": "npx @better-auth/cli generate --config src/modules/identity/infrastructure/auth.ts --output src/db/schema/auth-schema.ts -y"
+    "db:auth:generate": "npx @better-auth/cli generate --config src/modules/identity/infrastructure/auth.ts --output src/db/schema/auth-schema.ts -y",
+    "verify:migrations": "node scripts/verify-migration-set.mjs"
   },
   "dependencies": {
     "@swc/helpers": "^0.5.23",

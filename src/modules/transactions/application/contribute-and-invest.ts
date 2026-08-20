@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import { db } from "@/db/client";
+import { toPortfolioId } from "@/modules/portfolio/domain/portfolio";
+import { lockOwnedPortfolioForUpdate } from "@/modules/portfolio/infrastructure/drizzle-portfolio-repository";
 import type { UserId } from "@/shared/domain/user-id";
 
 import { insert, listByPortfolio } from "../infrastructure/ledger-repository";
@@ -71,6 +73,10 @@ export async function contributeAndInvest(
   });
 
   return db.transaction(async (tx) => {
+    // See `ledger-commands.ts`'s `createLedgerEntry` — serializes this
+    // combined mutation against every other create/edit/delete/
+    // contribute-and-invest on the same portfolio.
+    await lockOwnedPortfolioForUpdate(tx, ownerId, toPortfolioId(input.portfolioId));
     const contribution = await insert(tx, ownerId, toLedgerEntryValues(contributionCandidate));
     const buy = await insert(tx, ownerId, toLedgerEntryValues(buyCandidate));
 
