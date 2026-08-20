@@ -48,8 +48,8 @@ class FakePortfolioRepository implements PortfolioRepository {
   }
 }
 
-const owner = { userId: toUserId("owner-1") };
-const stranger = { userId: toUserId("owner-2") };
+const owner = { userId: toUserId("owner-1"), email: "owner@example.test", emailVerified: true };
+const stranger = { userId: toUserId("owner-2"), email: "stranger@example.test", emailVerified: true };
 
 let repository: FakePortfolioRepository;
 let deps: { repository: PortfolioRepository };
