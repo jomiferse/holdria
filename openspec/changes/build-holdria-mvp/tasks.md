@@ -4,7 +4,7 @@
 - [x] 1.2 Create the route groups, module directories, shared domain areas, database aggregation area, and composition boundaries described in the design.
 - [x] 1.3 Add typed environment validation for runtime and migration database URLs, Better Auth URL and secret, trusted origins, SMTP settings, and optional observability settings without exposing server secrets to the browser.
 - [x] 1.4 Configure Tailwind CSS and shadcn/ui with initial Holdria design tokens, typography, financial status colors, focus styles, and responsive layout primitives.
-- [ ] 1.5 Configure Vitest and Playwright, including PostgreSQL integration-test support and reusable authenticated-user fixtures that do not depend on production accounts.
+- [x] 1.5 Configure Vitest and Playwright, including PostgreSQL integration-test support and reusable authenticated-user fixtures that do not depend on production accounts.
 
 ## 2. PostgreSQL and Drizzle Foundation
 
@@ -19,13 +19,13 @@
 ## 3. Identity and Authorization
 
 - [x] 3.1 Configure the same-origin Better Auth Next.js handler with its Drizzle adapter, email/password authentication, required email verification, UUID IDs, database-backed sessions, and user deletion enabled.
-- [ ] 3.2 Configure production cookie, session expiry, revocation, trusted-origin, CSRF, password-hashing, and authentication rate-limit settings without Redis or stateless-session mode.
-- [ ] 3.3 Implement a provider-neutral email port with an SMTP adapter for verification, password reset, and account-security messages, including test transport and generic anti-enumeration responses.
-- [ ] 3.4 Implement the authenticated actor abstraction that converts the Better Auth user UUID into the domain `UserId` without exposing Better Auth types outside identity infrastructure.
-- [ ] 3.5 Build accessible registration, verification-pending, sign-in, sign-out, recovery, password-reset, authenticated password-change, and permanent account-deletion experiences.
-- [ ] 3.6 Implement account deletion confirmation and ensure one failed operation cannot leave credentials, sessions, or Holdria-owned data partially deleted.
-- [ ] 3.7 Add authenticated route protection for navigation and enforce verified-user authorization again inside every command and query entry point.
-- [ ] 3.8 Add tests for verification, neutral recovery responses, password reset and change, secure cookies, session expiry and revocation, deletion cascades, ignored owner identifiers, and cross-tenant denial.
+- [x] 3.2 Configure production cookie, session expiry, revocation, trusted-origin, CSRF, password-hashing, and authentication rate-limit settings without Redis or stateless-session mode.
+- [x] 3.3 Implement a provider-neutral email port with an SMTP adapter for verification, password reset, and account-security messages, including test transport and generic anti-enumeration responses.
+- [x] 3.4 Implement the authenticated actor abstraction that converts the Better Auth user UUID into the domain `UserId` without exposing Better Auth types outside identity infrastructure.
+- [x] 3.5 Build accessible registration, verification-pending, sign-in, sign-out, recovery, password-reset, authenticated password-change, and permanent account-deletion experiences.
+- [x] 3.6 Implement account deletion confirmation and ensure one failed operation cannot leave credentials, sessions, or Holdria-owned data partially deleted.
+- [x] 3.7 Add authenticated route protection for navigation and enforce verified-user authorization again inside every command and query entry point.
+- [x] 3.8 Add tests for verification, neutral recovery responses, password reset and change, secure cookies, session expiry and revocation, deletion cascades, ignored owner identifiers, and cross-tenant denial.
 
 ## 4. Portfolio Management and Product Shell
 
