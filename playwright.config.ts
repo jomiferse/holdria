@@ -53,6 +53,11 @@ export default defineConfig({
       HOSTNAME: "0.0.0.0",
       BETTER_AUTH_URL: baseURL,
       TRUSTED_ORIGINS: baseURL,
+      // The E2E suite signs many real users up and in from one host in a
+      // short window — legitimate test traffic, not the credential-
+      // stuffing/abuse pattern the production rate limit defends against
+      // (see `env.DISABLE_AUTH_RATE_LIMIT`).
+      DISABLE_AUTH_RATE_LIMIT: "true",
     },
   },
 });

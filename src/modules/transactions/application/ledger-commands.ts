@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { InvariantViolationError } from "@/shared/domain/errors";
 import type { UserId } from "@/shared/domain/user-id";
 
 import {
@@ -20,6 +21,16 @@ import { reduceLedger } from "../domain/ledger-reducer";
 import { toLedgerEntryValues as toValues } from "./ledger-entry-values";
 
 /**
+ * Identifies the mutated entry for `validatePortfolioReplay`'s backdated-
+ * conflict check. Only `sequence` is compared against the reducer's
+ * `describeEntry` output — see that function in `ledger-reducer.ts` — so
+ * this stays a plain data shape rather than importing the full domain type.
+ */
+interface MutatedEntryRef {
+  readonly sequence: bigint;
+}
+
+/**
  * Replays every entry currently in `portfolioId` (as visible within the
  * given transaction) and lets `reduceLedger` throw `InvariantViolationError`
  * if any prefix would leave cash or units negative. Called after the
@@ -31,9 +42,36 @@ async function validatePortfolioReplay(
   executor: Parameters<typeof listByPortfolio>[0],
   ownerId: UserId,
   portfolioId: PortfolioId,
+  /**
+   * The entry just created, edited, or (for a delete) removed, and a label
+   * describing that action. When the reducer's `InvariantViolationError`
+   * names a *different* entry than `mutatedEntry` (or `mutatedEntry` is
+   * omitted, as it always is for a delete — the removed entry can never
+   * appear in the post-deletion replay), the mutation is a backdated
+   * conflict: inserting, editing, or removing an earlier entry invalidated
+   * a later, otherwise-unrelated operation. The error is re-thrown with
+   * that made explicit (ledger spec: "Backdated edit invalidates later
+   * state" requires identifying the conflict with subsequent operations,
+   * not just naming the later entry as if it were itself invalid).
+   */
+  conflict?: { readonly label: string; readonly mutatedEntry?: MutatedEntryRef },
 ): Promise<void> {
   const entries = await listByPortfolio(executor, ownerId, portfolioId);
-  reduceLedger(entries);
+  try {
+    reduceLedger(entries);
+  } catch (error) {
+    if (conflict && error instanceof InvariantViolationError) {
+      const failedOnMutatedEntry =
+        conflict.mutatedEntry !== undefined &&
+        error.message.includes(`(sequence ${conflict.mutatedEntry.sequence})`);
+      if (!failedOnMutatedEntry) {
+        throw new InvariantViolationError(
+          `${conflict.label} conflicts with a later operation in this portfolio: ${error.message}`,
+        );
+      }
+    }
+    throw error;
+  }
 }
 
 /**
@@ -58,7 +96,10 @@ export async function createLedgerEntry(
 
   return db.transaction(async (tx) => {
     const created = await insert(tx, ownerId, toValues(candidate));
-    await validatePortfolioReplay(tx, ownerId, created.portfolioId);
+    await validatePortfolioReplay(tx, ownerId, created.portfolioId, {
+      label: "Adding this entry",
+      mutatedEntry: created.sequence !== undefined ? { sequence: created.sequence } : undefined,
+    });
     return created;
   });
 }
@@ -96,7 +137,10 @@ export async function editLedgerEntry(
       groupId: existing.groupId,
     });
     const updated = await update(tx, ownerId, id, toValues(candidate));
-    await validatePortfolioReplay(tx, ownerId, updated.portfolioId);
+    await validatePortfolioReplay(tx, ownerId, updated.portfolioId, {
+      label: "Saving this correction",
+      mutatedEntry: updated.sequence !== undefined ? { sequence: updated.sequence } : undefined,
+    });
     return updated;
   });
 }
@@ -110,7 +154,10 @@ export async function deleteLedgerEntry(ownerId: UserId, id: LedgerEntryId): Pro
   await db.transaction(async (tx) => {
     const existing = await requireOwnedById(tx, ownerId, id);
     await remove(tx, ownerId, id);
-    await validatePortfolioReplay(tx, ownerId, existing.portfolioId);
+    // No `mutatedEntry`: the removed entry can never appear in the
+    // post-deletion replay, so any invariant failure here is always a
+    // conflict with a later, otherwise-unrelated operation.
+    await validatePortfolioReplay(tx, ownerId, existing.portfolioId, { label: "Deleting this entry" });
   });
 }
 
