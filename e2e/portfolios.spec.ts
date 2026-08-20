@@ -1,4 +1,4 @@
-import { createAuthenticatedUser, deleteUser, expect, test } from "./fixtures";
+import { createAuthenticatedContext, deleteUser, expect, test } from "./fixtures";
 
 test.describe("portfolio management", () => {
   test("new user sees onboarding and creates their first portfolio", async ({ authenticatedPage: page }) => {
@@ -65,7 +65,7 @@ test.describe("portfolio management", () => {
     await expect(page.getByRole("heading", { name: "Welcome to Holdria" })).toBeVisible();
   });
 
-  test("does not let one user reach another user's portfolio", async ({ authenticatedPage: page, browser }) => {
+  test("does not let one user reach another user's portfolio", async ({ authenticatedPage: page, browser, baseURL }) => {
     await page.goto("/portfolios");
     await page.getByLabel("Portfolio name").fill("Owner-only");
     await page.getByRole("button", { name: "Create portfolio" }).click();
@@ -73,20 +73,9 @@ test.describe("portfolio management", () => {
     await page.waitForURL(/\/portfolios\/[^/]+$/);
     const ownerUrl = page.url();
 
-    const other = await createAuthenticatedUser();
-    const otherContext = await browser.newContext();
-    const host = new URL(ownerUrl);
-    await otherContext.addCookies(
-      other.cookies.map((cookie) => ({
-        name: cookie.name,
-        value: cookie.value,
-        domain: host.hostname,
-        path: "/",
-        // See e2e/fixtures.ts: the webServer always issues a
-        // `__Secure-`-prefixed cookie, which Chromium rejects unless
-        // `secure` is also set.
-        secure: cookie.name.startsWith("__Secure-") || cookie.name.startsWith("__Host-"),
-      })),
+    const { userId: otherUserId, context: otherContext } = await createAuthenticatedContext(
+      browser,
+      baseURL ?? "http://localhost:3000",
     );
     const otherPage = await otherContext.newPage();
 
@@ -102,6 +91,6 @@ test.describe("portfolio management", () => {
     await expect(otherPage.getByText("Owner-only")).toHaveCount(0);
 
     await otherContext.close();
-    await deleteUser(other.userId);
+    await deleteUser(otherUserId);
   });
 });

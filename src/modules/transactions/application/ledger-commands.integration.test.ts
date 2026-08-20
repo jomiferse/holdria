@@ -135,6 +135,8 @@ describe("ledger persistence (integration)", () => {
       cashAmount: "100",
     });
 
+    // A buy that fails on itself (not a backdated conflict with a later,
+    // separate operation) keeps the reducer's own message unwrapped.
     await expect(
       createLedgerEntry(ownerId, {
         type: "BUY",
@@ -144,7 +146,7 @@ describe("ledger persistence (integration)", () => {
         quantity: "10",
         unitPrice: "50",
       }),
-    ).rejects.toThrow(InvariantViolationError);
+    ).rejects.toThrow(/BUY.*would leave portfolio cash negative/);
 
     const listed = await listLedgerEntries(ownerId, portfolioId);
     expect(listed).toHaveLength(1); // only the contribution; the buy never committed
@@ -239,7 +241,7 @@ describe("ledger persistence (integration)", () => {
         effectiveDate: "2026-01-01",
         cashAmount: "500",
       }),
-    ).rejects.toThrow(InvariantViolationError);
+    ).rejects.toThrow(/Saving this correction conflicts with a later operation/);
 
     const listed = await listLedgerEntries(ownerId, portfolioId);
     const stillOriginal = listed.find((e) => e.id === contribution.id);
@@ -280,7 +282,7 @@ describe("ledger persistence (integration)", () => {
     });
 
     await expect(deleteLedgerEntry(ownerId, contribution.id!)).rejects.toThrow(
-      InvariantViolationError,
+      /Deleting this entry conflicts with a later operation/,
     );
 
     const listed = await listLedgerEntries(ownerId, portfolioId);
@@ -303,8 +305,10 @@ describe("ledger persistence (integration)", () => {
       unitPrice: "100",
     });
 
-    // Inserted with an earlier effective date than both existing entries;
-    // at that point in replayed order there is no cash yet to withdraw.
+    // Inserted with an earlier effective date than both existing entries,
+    // so in replayed order the new withdrawal itself is first and fails on
+    // itself (no cash yet) — not a conflict with a later, separate entry —
+    // so the reducer's own message is surfaced unwrapped.
     await expect(
       createLedgerEntry(ownerId, {
         type: "WITHDRAWAL",
@@ -312,10 +316,43 @@ describe("ledger persistence (integration)", () => {
         effectiveDate: "2026-01-01",
         cashAmount: "50",
       }),
-    ).rejects.toThrow(InvariantViolationError);
+    ).rejects.toThrow(/WITHDRAWAL.*would leave portfolio cash negative/);
 
     const listed = await listLedgerEntries(ownerId, portfolioId);
     expect(listed).toHaveLength(2); // the backdated withdrawal never committed
+  });
+
+  it("identifies an inserted entry that invalidates a separate, later entry as a conflict", async () => {
+    await createLedgerEntry(ownerId, {
+      type: "CONTRIBUTION",
+      portfolioId,
+      effectiveDate: "2026-01-05",
+      cashAmount: "1000",
+    });
+    await createLedgerEntry(ownerId, {
+      type: "BUY",
+      portfolioId,
+      effectiveDate: "2026-01-10",
+      instrumentId,
+      quantity: "10",
+      unitPrice: "100",
+    });
+
+    // Inserted between the two existing entries: the withdrawal itself is
+    // affordable (500 of 1000 cash), but it leaves too little for the
+    // already-persisted later buy — a genuine conflict with a separate,
+    // later operation, not a failure of the withdrawal itself.
+    await expect(
+      createLedgerEntry(ownerId, {
+        type: "WITHDRAWAL",
+        portfolioId,
+        effectiveDate: "2026-01-06",
+        cashAmount: "500",
+      }),
+    ).rejects.toThrow(/Adding this entry conflicts with a later operation[\s\S]*BUY[\s\S]*would leave portfolio cash negative/);
+
+    const listed = await listLedgerEntries(ownerId, portfolioId);
+    expect(listed).toHaveLength(2); // the conflicting withdrawal never committed
   });
 
   it("golden case: fees on both a buy and a full sell are reflected exactly in cash and realized result", async () => {

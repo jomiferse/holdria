@@ -4,6 +4,8 @@ import { Quantity } from "@/shared/domain/quantity";
 
 import type { InstrumentId, LedgerEntry } from "./ledger-entry";
 
+export type { InstrumentId } from "./ledger-entry";
+
 /** The open position in one instrument after replaying the ledger up to some point. */
 export interface PositionState {
   readonly instrumentId: InstrumentId;
