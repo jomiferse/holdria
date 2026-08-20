@@ -51,6 +51,18 @@ export class InvariantViolationError extends DomainError {
   readonly code = "INVARIANT_VIOLATION";
 }
 
+/** The actor made too many requests too quickly and must wait before retrying. */
+export class RateLimitedError extends DomainError {
+  readonly code = "RATE_LIMITED";
+
+  constructor(
+    message: string,
+    readonly retryAfterSeconds?: number,
+  ) {
+    super(message);
+  }
+}
+
 export function isDomainError(error: unknown): error is DomainError {
   return error instanceof DomainError;
 }

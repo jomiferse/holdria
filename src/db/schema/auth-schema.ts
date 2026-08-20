@@ -3,9 +3,21 @@
 // use PostgreSQL `uuid` identifiers instead of the CLI's default `text`
 // column (Better Auth CLI does not yet offer a uuid-id generator target).
 // After regenerating, reapply: `text("id")` -> `uuid("id").defaultRandom()`
-// on every primary key, and the matching `userId` foreign key columns.
+// on every primary key, the matching `userId` foreign key columns,
+// `timestamp(...)` -> `timestamp(..., { withTimezone: true })` throughout,
+// and the `account.issuer` column (see its own comment below — the CLI
+// does not yet emit a field the runtime adapter requires).
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, uuid, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  bigint,
+  timestamp,
+  boolean,
+  integer,
+  uuid,
+  index,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -46,6 +58,12 @@ export const account = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
+    // Required by @better-auth/core's account-linking lookups as of
+    // better-auth 1.7.0 (`createLocalAccountIssuer`/`createOAuthAccountIssuer`
+    // in db/schema/account.mjs), even though the `@better-auth/cli generate`
+    // command in this version does not emit it. Hand-added; keep on the
+    // next regeneration (see the file header) until the CLI catches up.
+    issuer: text("issuer").notNull(),
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -80,6 +98,17 @@ export const verification = pgTable(
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
+
+// Database-backed rate-limit counters (see auth.ts `rateLimit.storage:
+// "database"`). Deliberately not user-owned data: it is not covered by the
+// cascading-deletion account-deletion transaction and carries no personal
+// data beyond a rate-limit key (e.g. `ip:/sign-in/email`).
+export const rateLimit = pgTable("rate_limit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
