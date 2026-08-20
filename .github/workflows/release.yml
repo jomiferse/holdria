@@ -1,0 +1,218 @@
+name: Release
+
+# Task 10.4 (openspec/changes/build-holdria-mvp): checks -> build app +
+# Docker image -> migrate as an explicit, separately-gated release step.
+# No application replica ever runs migrations itself (design.md decision
+# 11) — only this workflow's `migrate` job, and only against an
+# environment an operator has configured with its own database secret and
+# (for staging/production) required reviewers under
+# Settings -> Environments.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to migrate (must match a configured GitHub Environment)
+        required: false
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.21.0"
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Checks: lint, types, unit + PostgreSQL integration tests, Playwright
+  # end-to-end tests, and both the Turbopack and webpack production
+  # builds. Nothing here touches a real deployment target.
+  # ---------------------------------------------------------------------
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: holdria_test
+          POSTGRES_USER: holdria
+          POSTGRES_PASSWORD: holdria_ci_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U holdria -d holdria_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Same database, same server, for both the app/migrator roles and
+      # Drizzle Kit — CI has no separate-role requirement the way a real
+      # deployment's network policy does (see drizzle/roles.sql and
+      # docs/deployment.md's "Database roles and network access").
+      DATABASE_URL: postgresql://holdria:holdria_ci_password@localhost:5432/holdria_test
+      MIGRATION_DATABASE_URL: postgresql://holdria:holdria_ci_password@localhost:5432/holdria_test
+      BETTER_AUTH_SECRET: ci-secret-at-least-32-characters-long-value
+      BETTER_AUTH_URL: http://localhost:3100
+      TRUSTED_ORIGINS: http://localhost:3100
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: no-reply@holdria.local
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+      - run: pnpm build # also produces .next/types, needed by typecheck
+      - run: pnpm typecheck
+      - run: pnpm exec next build --webpack # verify the non-default bundler build stays green
+
+      - run: pnpm db:migrate # apply the reviewed migration before integration/e2e tests run against it
+      - run: pnpm test
+      - run: pnpm test:integration
+
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------
+  # Build and verify the production Docker image (task 10.6's "Docker
+  # image build verification"): the same multi-stage, non-root, standalone
+  # image an operator runs, smoke-tested by actually starting it against
+  # a throwaway PostgreSQL container and hitting its health endpoints.
+  # Published to GHCR only on `main`/tags so PR builds stay verify-only.
+  # ---------------------------------------------------------------------
+  docker:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: holdria:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the built image
+        run: |
+          set -euo pipefail
+          docker network create holdria-ci
+          docker run -d --name holdria-ci-postgres --network holdria-ci \
+            -e POSTGRES_DB=holdria -e POSTGRES_USER=holdria -e POSTGRES_PASSWORD=holdria_ci_password \
+            postgres:17-alpine
+          for i in $(seq 1 30); do
+            docker exec holdria-ci-postgres pg_isready -U holdria -d holdria >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker run -d --name holdria-ci-app --network holdria-ci -p 3200:3000 \
+            -e DATABASE_URL="postgresql://holdria:holdria_ci_password@holdria-ci-postgres:5432/holdria" \
+            -e BETTER_AUTH_SECRET="ci-image-smoke-secret-at-least-32-chars" \
+            -e BETTER_AUTH_URL="http://localhost:3200" \
+            -e TRUSTED_ORIGINS="http://localhost:3200" \
+            -e SMTP_HOST="localhost" \
+            holdria:ci
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3200/api/health || true)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          test "$code" = "200" || { echo "liveness probe never returned 200"; docker logs holdria-ci-app; exit 1; }
+          # Readiness only checks PostgreSQL reachability (SELECT 1), not
+          # schema state — this container's database has no migrations
+          # applied (migrations are a separate, explicit step; see the
+          # `migrate` job below), and readiness is still expected to
+          # report 200 because the connection itself is fine.
+          ready_code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3200/api/health/ready || true)
+          test "$ready_code" = "200" || { echo "readiness probe expected 200, got $ready_code"; docker logs holdria-ci-app; exit 1; }
+
+      - if: always()
+        run: docker rm -f holdria-ci-app holdria-ci-postgres 2>/dev/null; docker network rm holdria-ci 2>/dev/null || true
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------
+  # Explicit release step: apply the reviewed Drizzle migration(s) to a
+  # real target database. Deliberately its own job, gated behind a GitHub
+  # Environment (`environment:` below) so it only runs against a database
+  # an operator has configured secrets for, optionally with required
+  # reviewers — never automatically for every push, and never from an
+  # application replica at startup (design.md decision 11).
+  #
+  # To use this job: create a "staging" and/or "production" GitHub
+  # Environment (Settings -> Environments), add its MIGRATION_DATABASE_URL
+  # as an environment secret, then run this workflow manually
+  # (workflow_dispatch) with `environment` set to that name. Left
+  # unset, this job is skipped — a normal push never migrates anything.
+  # ---------------------------------------------------------------------
+  migrate:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment != ''
+    needs: docker
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --prod=false
+
+      - name: Apply reviewed migrations
+        run: pnpm db:migrate

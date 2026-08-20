@@ -98,3 +98,12 @@ The image validates its environment at startup and stores no durable state
 on its own filesystem; PostgreSQL is a separate, persistently backed
 service. Migrations are an explicit release step (`pnpm db:migrate`), never
 run automatically by an application replica at startup.
+
+## Deployment
+
+See `docs/deployment.md` for staging/production environment
+configuration, Better Auth secrets and trusted origins, HTTPS
+reverse-proxy setup, SMTP, PostgreSQL backup and restore, the migration
+procedure, optional observability, the CI release workflow
+(`.github/workflows/release.yml`), and the clean-deployment verification
+procedure.

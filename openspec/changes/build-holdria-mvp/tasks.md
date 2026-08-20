@@ -84,6 +84,6 @@
 - [x] 10.1 Configure Next.js standalone Node.js output and create a multi-stage Docker image that runs as non-root with no durable filesystem dependency.
 - [x] 10.2 Add a reference Docker Compose deployment for the application and persistent PostgreSQL, plus a development/test SMTP service, without coupling production to Compose.
 - [x] 10.3 Add liveness and PostgreSQL-readiness endpoints, graceful connection-pool shutdown, and documented runtime versus migration database roles.
-- [ ] 10.4 Add a release workflow that runs checks, builds the application and Docker image, and executes reviewed Drizzle migrations as an explicit step rather than at replica startup.
-- [ ] 10.5 Document local, test, staging, and production configuration for Better Auth secrets, trusted origins, HTTPS proxying, SMTP, PostgreSQL backup and restore, migration, and optional observability.
-- [ ] 10.6 Verify a clean operator-controlled Docker deployment with PostgreSQL and Better Auth, then run migration, authentication, deletion, smoke, accessibility, and tenant-isolation checks.
+- [x] 10.4 Add a release workflow that runs checks, builds the application and Docker image, and executes reviewed Drizzle migrations as an explicit step rather than at replica startup.
+- [x] 10.5 Document local, test, staging, and production configuration for Better Auth secrets, trusted origins, HTTPS proxying, SMTP, PostgreSQL backup and restore, migration, and optional observability.
+- [x] 10.6 Verify a clean operator-controlled Docker deployment with PostgreSQL and Better Auth, then run migration, authentication, deletion, smoke, accessibility, and tenant-isolation checks.

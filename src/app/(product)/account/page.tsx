@@ -31,7 +31,7 @@ export default async function AccountPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 p-6">
+    <main className="mx-auto flex w-full max-w-lg flex-col gap-6 p-6">
       <div>
         <h1 className="text-lg font-medium">Account</h1>
         <p className="text-sm text-muted-foreground">Signed in as {actor.email}</p>
@@ -67,6 +67,6 @@ export default async function AccountPage() {
           <DeleteAccountForm />
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

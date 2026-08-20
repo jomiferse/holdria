@@ -65,6 +65,15 @@ export const test = base.extend<Fixtures>({
         value: cookie.value,
         domain: url.hostname,
         path: "/",
+        // `playwright.config.ts`'s webServer always runs the standalone
+        // production build, so Better Auth always issues this as a
+        // `__Secure-`-prefixed cookie (`useSecureCookies` in `auth.ts`).
+        // Chromium rejects a `__Secure-` cookie outright unless its
+        // `Secure` attribute is also set — `addCookies` defaults it to
+        // `false` when not given explicitly — so omitting this silently
+        // drops the cookie and every "authenticated" request lands back
+        // on `/sign-in`.
+        secure: cookie.name.startsWith("__Secure-") || cookie.name.startsWith("__Host-"),
       })),
     );
 

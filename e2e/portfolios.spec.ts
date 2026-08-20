@@ -77,7 +77,16 @@ test.describe("portfolio management", () => {
     const otherContext = await browser.newContext();
     const host = new URL(ownerUrl);
     await otherContext.addCookies(
-      other.cookies.map((cookie) => ({ name: cookie.name, value: cookie.value, domain: host.hostname, path: "/" })),
+      other.cookies.map((cookie) => ({
+        name: cookie.name,
+        value: cookie.value,
+        domain: host.hostname,
+        path: "/",
+        // See e2e/fixtures.ts: the webServer always issues a
+        // `__Secure-`-prefixed cookie, which Chromium rejects unless
+        // `secure` is also set.
+        secure: cookie.name.startsWith("__Secure-") || cookie.name.startsWith("__Host-"),
+      })),
     );
     const otherPage = await otherContext.newPage();
 

@@ -11,6 +11,26 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 // developer's local `holdria` database or a production account.
 loadEnv({ path: path.resolve(rootDir, ".env.test"), override: true });
 
+// `webServer` below always runs the standalone production build, which
+// hardcodes `NODE_ENV=production` itself (`.next/standalone/server.js`),
+// so Better Auth there always issues `__Secure-`-prefixed session cookies
+// (`useSecureCookies` in `auth.ts`). Test files that build a session
+// in-process (e.g. `e2e/fixtures.ts`'s `authenticatedPage`, via
+// `auth.api.signInEmail`) import that same `auth.ts` inside *this*
+// process, which otherwise defaults to `NODE_ENV=development` and would
+// mint an unprefixed cookie name the webServer's Better Auth never looks
+// for — silently leaving the browser signed out. Matching NODE_ENV here
+// keeps both sides' cookie naming consistent.
+// `@types/node`/Next.js declare `process.env.NODE_ENV` as readonly, so a
+// direct assignment fails type checking; `defineProperty` sets the same
+// underlying value without that compile-time restriction.
+Object.defineProperty(process.env, "NODE_ENV", {
+  value: "production",
+  configurable: true,
+  enumerable: true,
+  writable: true,
+});
+
 const PORT = 3100;
 const baseURL = `http://localhost:${PORT}`;
 
