@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import "dotenv/config";
 
 /**
  * Vitest covers pure domain, application, and infrastructure code (see

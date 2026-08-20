@@ -45,13 +45,13 @@
 
 ## 6. Ledger and Accounting Projection
 
-- [ ] 6.1 Implement precise shared financial value objects using `decimal.js`, validated date-only values, centralized EUR formatting, and no JavaScript-number calculation paths.
-- [ ] 6.2 Implement CONTRIBUTION, WITHDRAWAL, BUY, and SELL as a discriminated ledger domain model with type-specific invariants and fee handling.
-- [ ] 6.3 Implement the deterministic ledger reducer for cash, units, weighted-average open cost, and realized result ordered by effective date and immutable sequence.
-- [ ] 6.4 Implement owner-scoped ledger persistence with concurrency-safe sequence allocation and transactional replay validation for create, edit, and delete.
-- [ ] 6.5 Implement the atomic contribute-and-invest command that persists linked CONTRIBUTION and BUY entries in the required order or rolls both back.
+- [x] 6.1 Implement precise shared financial value objects using `decimal.js`, validated date-only values, centralized EUR formatting, and no JavaScript-number calculation paths.
+- [x] 6.2 Implement CONTRIBUTION, WITHDRAWAL, BUY, and SELL as a discriminated ledger domain model with type-specific invariants and fee handling.
+- [x] 6.3 Implement the deterministic ledger reducer for cash, units, weighted-average open cost, and realized result ordered by effective date and immutable sequence.
+- [x] 6.4 Implement owner-scoped ledger persistence with concurrency-safe sequence allocation and transactional replay validation for create, edit, and delete.
+- [x] 6.5 Implement the atomic contribute-and-invest command that persists linked CONTRIBUTION and BUY entries in the required order or rolls both back.
 - [ ] 6.6 Build ledger list, add, edit, delete, and contribute-and-invest forms with type-aware fields and explanations for negative-cash, negative-units, and backdated conflicts.
-- [ ] 6.7 Add golden, edge-case, and invariant-oriented tests for fees, multiple buys, partial and full sales, same-date ordering, corrections, and failed atomic groups.
+- [x] 6.7 Add golden, edge-case, and invariant-oriented tests for fees, multiple buys, partial and full sales, same-date ordering, corrections, and failed atomic groups.
 
 ## 7. Manual Pricing and Provider Boundary
 
