@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import "dotenv/config";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
