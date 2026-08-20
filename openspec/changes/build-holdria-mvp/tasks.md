@@ -55,11 +55,11 @@
 
 ## 7. Manual Pricing and Provider Boundary
 
-- [ ] 7.1 Implement the price-observation domain model, owner-scoped repository, and create, edit, delete, and list use cases for dated positive EUR manual prices.
-- [ ] 7.2 Implement deterministic as-of price selection that returns value, effective date, source, and an explicit unpriced result.
-- [ ] 7.3 Define provider-neutral application ports and DTOs for instrument search, latest prices, and price history, plus instrument external-reference persistence, without adding a real provider.
-- [ ] 7.4 Build manual-price list and edit experiences that expose effective date and source, prevent ambiguous same-date duplicates, and never label manual data as real-time.
-- [ ] 7.5 Add domain, persistence, authorization, and UI tests for price validation, duplicate dates, corrections, deletion, provenance, and as-of selection.
+- [x] 7.1 Implement the price-observation domain model, owner-scoped repository, and create, edit, delete, and list use cases for dated positive EUR manual prices.
+- [x] 7.2 Implement deterministic as-of price selection that returns value, effective date, source, and an explicit unpriced result.
+- [x] 7.3 Define provider-neutral application ports and DTOs for instrument search, latest prices, and price history, plus instrument external-reference persistence, without adding a real provider.
+- [x] 7.4 Build manual-price list and edit experiences that expose effective date and source, prevent ambiguous same-date duplicates, and never label manual data as real-time.
+- [x] 7.5 Add domain, persistence, authorization, and UI tests for price validation, duplicate dates, corrections, deletion, provenance, and as-of selection. (Playwright/e2e UI tests are blocked on task 1.5 — no Playwright config exists yet; covered instead with Vitest tests for the Zod input schemas.)
 
 ## 8. Portfolio Analytics
 
